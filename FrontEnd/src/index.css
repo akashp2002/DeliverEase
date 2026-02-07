@@ -1,0 +1,289 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Scheduled Delivery Management System - Design System
+   Theme: Professional logistics with navy, teal accents, and clean typography
+*/
+
+@layer base {
+  :root {
+    /* Core backgrounds */
+    --background: 210 20% 98%;
+    --foreground: 215 25% 15%;
+
+    /* Cards & elevated surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
+
+    /* Popovers & dropdowns */
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 15%;
+
+    /* Primary - Deep Navy */
+    --primary: 215 50% 23%;
+    --primary-foreground: 210 40% 98%;
+
+    /* Secondary - Slate */
+    --secondary: 210 15% 93%;
+    --secondary-foreground: 215 25% 25%;
+
+    /* Muted surfaces */
+    --muted: 210 15% 95%;
+    --muted-foreground: 215 15% 45%;
+
+    /* Accent - Teal */
+    --accent: 174 62% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Success - Green for delivered status */
+    --success: 142 70% 40%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning - Amber for pending */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 10%;
+
+    /* Destructive */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders & inputs */
+    --border: 214 20% 88%;
+    --input: 214 20% 88%;
+    --ring: 174 62% 40%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar - Dashboard navigation */
+    --sidebar-background: 215 50% 18%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 174 62% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 45% 25%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 215 40% 25%;
+    --sidebar-ring: 174 62% 45%;
+
+    /* Custom gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(215, 50%, 23%) 0%, hsl(215, 45%, 30%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(174, 62%, 40%) 0%, hsl(174, 55%, 50%) 100%);
+    --gradient-success: linear-gradient(135deg, hsl(142, 70%, 40%) 0%, hsl(142, 60%, 50%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0, 0%, 100%) 0%, hsl(210, 20%, 98%) 100%);
+
+    /* Chart colors */
+    --chart-1: 215 50% 23%;
+    --chart-2: 174 62% 40%;
+    --chart-3: 142 70% 40%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 0 72% 51%;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
+
+  .dark {
+    --background: 215 30% 10%;
+    --foreground: 210 20% 95%;
+
+    --card: 215 30% 13%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 215 30% 13%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 174 62% 45%;
+    --primary-foreground: 215 30% 10%;
+
+    --secondary: 215 25% 20%;
+    --secondary-foreground: 210 20% 90%;
+
+    --muted: 215 25% 18%;
+    --muted-foreground: 215 15% 60%;
+
+    --accent: 174 62% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 0 0% 10%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 25% 22%;
+    --input: 215 25% 22%;
+    --ring: 174 62% 45%;
+
+    --sidebar-background: 215 35% 8%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 174 62% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 30% 15%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 215 30% 18%;
+    --sidebar-ring: 174 62% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight text-foreground;
+  }
+}
+
+@layer components {
+  /* Dashboard card with hover effect */
+  .dashboard-card {
+    @apply bg-card rounded-lg border border-border p-6 transition-all duration-200;
+    box-shadow: var(--shadow-card);
+  }
+
+  .dashboard-card:hover {
+    box-shadow: var(--shadow-md);
+    @apply border-accent/30;
+  }
+
+  /* Stat card gradient variants */
+  .stat-card {
+    @apply rounded-xl p-6 text-white transition-transform duration-200;
+  }
+
+  .stat-card:hover {
+    @apply scale-[1.02];
+  }
+
+  .stat-card-primary {
+    background: var(--gradient-primary);
+  }
+
+  .stat-card-accent {
+    background: var(--gradient-accent);
+  }
+
+  .stat-card-success {
+    background: var(--gradient-success);
+  }
+
+  /* Sidebar active state */
+  .sidebar-link {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg text-sidebar-foreground/80 transition-all duration-200;
+  }
+
+  .sidebar-link:hover {
+    @apply bg-sidebar-accent text-sidebar-accent-foreground;
+  }
+
+  .sidebar-link.active {
+    @apply bg-sidebar-primary text-sidebar-primary-foreground;
+  }
+
+  /* Map container */
+  .map-container {
+    @apply rounded-lg overflow-hidden border border-border;
+    height: 400px;
+  }
+
+  .map-container-large {
+    height: 500px;
+  }
+
+  /* Status badges */
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  .status-delivered {
+    @apply bg-success/15 text-success;
+  }
+
+  .status-pending {
+    @apply bg-warning/15 text-warning;
+  }
+
+  .status-in-transit {
+    @apply bg-accent/15 text-accent;
+  }
+
+  /* Table styles */
+  .data-table {
+    @apply w-full text-sm;
+  }
+
+  .data-table th {
+    @apply text-left font-medium text-muted-foreground px-4 py-3 border-b;
+  }
+
+  .data-table td {
+    @apply px-4 py-3 border-b border-border/50;
+  }
+
+  .data-table tr:hover {
+    @apply bg-muted/50;
+  }
+}
+
+@layer utilities {
+  /* Gradient text */
+  .text-gradient-primary {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-accent {
+    background: var(--gradient-accent);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Scrollbar styling */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 3px;
+  }
+}
+
+/* Leaflet map overrides */
+.leaflet-container {
+  font-family: inherit;
+  z-index: 0;
+}
+
+.leaflet-popup-content-wrapper {
+  @apply rounded-lg shadow-lg;
+}
+
+.leaflet-popup-content {
+  @apply text-sm text-foreground;
+  margin: 12px 16px;
+}
