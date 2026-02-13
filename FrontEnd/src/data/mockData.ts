@@ -13,12 +13,19 @@ export interface DeliveryAgent {
 
 export interface DeliveryLocation {
   id: string;
-  address: string;
-  lat: number;
-  lng: number;
+  streetAddress: string;
+  area: string;
+  city: string;
+  state: string;
+  country: string; // e.g., "India"
+  postalCode: string;
+  landmark?: string;
   customerName: string;
   phone: string;
   notes?: string;
+  // These are auto-generated for map display
+  lat?: number;
+  lng?: number;
 }
 
 export interface ScheduledDelivery {
@@ -98,71 +105,111 @@ export const mockDeliveryAgents: DeliveryAgent[] = [
 export const mockDeliveryLocations: DeliveryLocation[] = [
   {
     id: 'loc-001',
-    address: 'Connaught Place, Block A, New Delhi',
-    lat: 28.6315,
-    lng: 77.2167,
+    streetAddress: '101 Connaught Place, Block A',
+    area: 'Connaught Place',
+    city: 'New Delhi',
+    state: 'Delhi',
+    country: 'India',
+    postalCode: '110001',
     customerName: 'Arun Mehta',
     phone: '+91 99887 76655',
-    notes: 'Office building, 3rd floor',
+    landmark: 'Office building, 3rd floor',
+    lat: 28.6315,
+    lng: 77.2167,
   },
   {
     id: 'loc-002',
-    address: 'Saket District Centre, New Delhi',
-    lat: 28.5244,
-    lng: 77.2066,
+    streetAddress: '45 Saket District Centre',
+    area: 'Saket',
+    city: 'New Delhi',
+    state: 'Delhi',
+    country: 'India',
+    postalCode: '110017',
     customerName: 'Meera Joshi',
     phone: '+91 99887 76656',
+    lat: 28.5244,
+    lng: 77.2066,
   },
   {
     id: 'loc-003',
-    address: 'Nehru Place, South Delhi',
-    lat: 28.5494,
-    lng: 77.2544,
+    streetAddress: 'Shop 45, Nehru Place',
+    area: 'Nehru Place',
+    city: 'New Delhi',
+    state: 'Delhi',
+    country: 'India',
+    postalCode: '110019',
     customerName: 'Rajesh Gupta',
     phone: '+91 99887 76657',
-    notes: 'Electronics market, Shop 45',
+    landmark: 'Electronics market, Shop 45',
+    lat: 28.5494,
+    lng: 77.2544,
   },
   {
     id: 'loc-004',
-    address: 'Lajpat Nagar Market, New Delhi',
-    lat: 28.5677,
-    lng: 77.2433,
+    streetAddress: '789 Lajpat Nagar Market',
+    area: 'Lajpat Nagar',
+    city: 'New Delhi',
+    state: 'Delhi',
+    country: 'India',
+    postalCode: '110024',
     customerName: 'Sunita Rao',
     phone: '+91 99887 76658',
+    lat: 28.5677,
+    lng: 77.2433,
   },
   {
     id: 'loc-005',
-    address: 'Greater Kailash 1, New Delhi',
-    lat: 28.5494,
-    lng: 77.2344,
+    streetAddress: 'B-Block, Greater Kailash 1',
+    area: 'Greater Kailash',
+    city: 'New Delhi',
+    state: 'Delhi',
+    country: 'India',
+    postalCode: '110048',
     customerName: 'Karan Malhotra',
     phone: '+91 99887 76659',
-    notes: 'Residential apartment, B-Block',
+    landmark: 'Residential apartment, B-Block',
+    lat: 28.5494,
+    lng: 77.2344,
   },
   {
     id: 'loc-006',
-    address: 'India Gate, Rajpath, New Delhi',
-    lat: 28.6129,
-    lng: 77.2295,
+    streetAddress: 'India Gate, Rajpath',
+    area: 'India Gate',
+    city: 'New Delhi',
+    state: 'Delhi',
+    country: 'India',
+    postalCode: '110001',
     customerName: 'Pooja Verma',
     phone: '+91 99887 76660',
+    lat: 28.6129,
+    lng: 77.2295,
   },
   {
     id: 'loc-007',
-    address: 'Karol Bagh, Central Delhi',
-    lat: 28.6514,
-    lng: 77.1907,
+    streetAddress: '234 Karol Bagh, Near Metro Station',
+    area: 'Karol Bagh',
+    city: 'New Delhi',
+    state: 'Delhi',
+    country: 'India',
+    postalCode: '110005',
     customerName: 'Deepak Nair',
     phone: '+91 99887 76661',
-    notes: 'Near Metro Station',
+    landmark: 'Near Metro Station',
+    lat: 28.6514,
+    lng: 77.1907,
   },
   {
     id: 'loc-008',
-    address: 'Dwarka Sector 21, West Delhi',
-    lat: 28.5529,
-    lng: 77.0583,
+    streetAddress: 'Sector 21, Plot 108',
+    area: 'Dwarka',
+    city: 'New Delhi',
+    state: 'Delhi',
+    country: 'India',
+    postalCode: '110077',
     customerName: 'Anita Sharma',
     phone: '+91 99887 76662',
+    lat: 28.5529,
+    lng: 77.0583,
   },
 ];
 

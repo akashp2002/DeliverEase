@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { StatusBadge } from '@/components/StatusBadge';
-import { useDelivery } from '@/contexts/DeliveryContext';
-import { DeliveryAgent } from '@/data/mockData';
-import { Plus, Search, Phone, Mail, Edit, Trash2, User } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import api from '@/lib/api';
+import { Plus, Search, Phone, Mail, Trash2, User, Loader } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,16 +17,55 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 
+interface Agent {
+  _id: string;
+  id?: string;
+  name: string;
+  email: string;
+  phone: string;
+  status: 'available' | 'on-delivery' | 'off-duty';
+  role: string;
+}
+
 export default function AgentManagement() {
-  const { agents, addAgent, removeAgent, updateAgentStatus, getAgentDeliveries } = useDelivery();
+  const { isAuthenticated } = useAuth();
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
   const [newAgent, setNewAgent] = useState({
     name: '',
     email: '',
     phone: '',
-    status: 'available' as DeliveryAgent['status'],
+    password: '',
+    status: 'available' as Agent['status'],
   });
+
+  // Fetch agents from backend
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        setIsFetching(true);
+        const response = await api.get('/agents');
+
+        if (response.data.success) {
+          setAgents(response.data.data);
+        } else {
+          toast.error(response.data.message || 'Failed to fetch agents');
+        }
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || 'Failed to fetch agents');
+        console.error(error);
+      } finally {
+        setIsFetching(false);
+      }
+    };
+
+    if (isAuthenticated) {
+      fetchAgents();
+    }
+  }, [isAuthenticated]);
 
   const filteredAgents = agents.filter(
     agent =>
@@ -34,25 +73,79 @@ export default function AgentManagement() {
       agent.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleAddAgent = () => {
-    if (!newAgent.name || !newAgent.email || !newAgent.phone) {
+  const handleAddAgent = async () => {
+    if (!newAgent.name || !newAgent.email || !newAgent.phone || !newAgent.password) {
       toast.error('Please fill in all fields');
       return;
     }
-    addAgent(newAgent);
-    setNewAgent({ name: '', email: '', phone: '', status: 'available' });
-    setIsAddDialogOpen(false);
-    toast.success('Delivery agent added successfully');
+
+    try {
+      setIsLoading(true);
+
+      const response = await api.post('/agents', {
+        name: newAgent.name,
+        email: newAgent.email,
+        phone: newAgent.phone,
+        password: newAgent.password,
+        status: newAgent.status,
+      });
+
+      if (response.data.success) {
+        setAgents([...agents, response.data.data]);
+        setNewAgent({ name: '', email: '', phone: '', password: '', status: 'available' });
+        setIsAddDialogOpen(false);
+        toast.success('Agent created successfully');
+      } else {
+        toast.error(response.data.message || 'Failed to create agent');
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to create agent');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleDeleteAgent = (agentId: string) => {
-    removeAgent(agentId);
-    toast.success('Agent removed successfully');
+  const handleDeleteAgent = async (agentId: string) => {
+    try {
+      setIsLoading(true);
+
+      const response = await api.delete(`/agents/${agentId}`);
+
+      if (response.data.success) {
+        setAgents(agents.filter(agent => agent._id !== agentId));
+        toast.success('Agent removed successfully');
+      } else {
+        toast.error(response.data.message || 'Failed to delete agent');
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to delete agent');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleStatusChange = (agentId: string, status: DeliveryAgent['status']) => {
-    updateAgentStatus(agentId, status);
-    toast.success('Agent status updated');
+  const handleStatusChange = async (agentId: string, status: Agent['status']) => {
+    try {
+      setIsLoading(true);
+
+      const response = await api.put(`/agents/${agentId}/status`, { status });
+
+      if (response.data.success) {
+        setAgents(agents.map(agent =>
+          agent._id === agentId ? { ...agent, status } : agent
+        ));
+        toast.success('Agent status updated');
+      } else {
+        toast.error(response.data.message || 'Failed to update status');
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to update status');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -65,7 +158,7 @@ export default function AgentManagement() {
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            <Button className="gap-2" disabled={isLoading}>
               <Plus className="h-4 w-4" />
               Add New Agent
             </Button>
@@ -79,23 +172,28 @@ export default function AgentManagement() {
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
                 <Input id="name" placeholder="Enter agent's full name" value={newAgent.name}
-                  onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })} />
+                  onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })} disabled={isLoading} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" type="email" placeholder="agent@example.com" value={newAgent.email}
-                  onChange={(e) => setNewAgent({ ...newAgent, email: e.target.value })} />
+                  onChange={(e) => setNewAgent({ ...newAgent, email: e.target.value })} disabled={isLoading} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" placeholder="+91 98765 43210" value={newAgent.phone}
-                  onChange={(e) => setNewAgent({ ...newAgent, phone: e.target.value })} />
+                <Input id="phone" placeholder="+91 " value={newAgent.phone}
+                  onChange={(e) => setNewAgent({ ...newAgent, phone: e.target.value })} disabled={isLoading} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input id="password" type="password" placeholder="Enter password" value={newAgent.password}
+                  onChange={(e) => setNewAgent({ ...newAgent, password: e.target.value })} disabled={isLoading} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="status">Initial Status</Label>
                 <Select value={newAgent.status}
-                  onValueChange={(value) => setNewAgent({ ...newAgent, status: value as DeliveryAgent['status'] })}>
-                  <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                  onValueChange={(value) => setNewAgent({ ...newAgent, status: value as Agent['status'] })} disabled={isLoading}>
+                  <SelectTrigger disabled={isLoading}><SelectValue placeholder="Select status" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="available">Available</SelectItem>
                     <SelectItem value="on-delivery">On Delivery</SelectItem>
@@ -105,8 +203,17 @@ export default function AgentManagement() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleAddAgent}>Add Agent</Button>
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isLoading}>Cancel</Button>
+              <Button onClick={handleAddAgent} disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader className="h-4 w-4 animate-spin mr-2" />
+                    Adding...
+                  </>
+                ) : (
+                  'Add Agent'
+                )}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -119,12 +226,19 @@ export default function AgentManagement() {
           onChange={(e) => setSearchQuery(e.target.value)} className="pl-10" />
       </div>
 
+      {/* Loading State */}
+      {isFetching && (
+        <div className="flex items-center justify-center py-12">
+          <Loader className="h-6 w-6 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-muted-foreground">Loading agents...</span>
+        </div>
+      )}
+
       {/* Agent Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredAgents.map(agent => {
-          const agentDels = getAgentDeliveries(agent.id);
-          return (
-            <Card key={agent.id} className="hover:shadow-md transition-shadow">
+      {!isFetching && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredAgents.map(agent => (
+            <Card key={agent._id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
@@ -133,7 +247,7 @@ export default function AgentManagement() {
                     </div>
                     <div>
                       <CardTitle className="text-lg">{agent.name}</CardTitle>
-                      <CardDescription>{agent.id}</CardDescription>
+                      <CardDescription>{agent._id}</CardDescription>
                     </div>
                   </div>
                   <StatusBadge status={agent.status} />
@@ -147,20 +261,13 @@ export default function AgentManagement() {
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Phone className="h-4 w-4" /><span>{agent.phone}</span>
                   </div>
-                  <div className="flex items-center justify-between pt-3 border-t">
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Assigned: </span>
-                      <span className="font-medium">{agentDels.length}</span>
-                      <span className="text-muted-foreground"> deliveries</span>
-                    </div>
-                  </div>
 
                   {/* Status Update */}
                   <div className="pt-3 border-t">
                     <Label className="text-xs text-muted-foreground mb-2 block">Update Status</Label>
                     <Select value={agent.status}
-                      onValueChange={(value) => handleStatusChange(agent.id, value as DeliveryAgent['status'])}>
-                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      onValueChange={(value) => handleStatusChange(agent._id, value as Agent['status'])}>
+                      <SelectTrigger className="h-9" disabled={isLoading}><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="available">Available</SelectItem>
                         <SelectItem value="on-delivery">On Delivery</SelectItem>
@@ -171,19 +278,24 @@ export default function AgentManagement() {
 
                   {/* Actions */}
                   <div className="flex gap-2 pt-2">
-                    <Button variant="outline" size="sm" className="flex-1 gap-1 text-destructive hover:text-destructive"
-                      onClick={() => handleDeleteAgent(agent.id)}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1 gap-1 text-destructive hover:text-destructive"
+                      onClick={() => handleDeleteAgent(agent._id)}
+                      disabled={isLoading}
+                    >
                       <Trash2 className="h-3 w-3" />Remove
                     </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {filteredAgents.length === 0 && (
+      {filteredAgents.length === 0 && !isFetching && (
         <div className="text-center py-12">
           <User className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
           <h3 className="text-lg font-medium text-muted-foreground">No agents found</h3>

@@ -22,7 +22,7 @@ export default function AssignedRoute() {
     { lat: warehouseLocation.lat, lng: warehouseLocation.lng, label: 'Central Warehouse (Start)', type: 'warehouse' as const },
     ...orderedDeliveries.map((d, i) => ({
       lat: d.location.lat, lng: d.location.lng,
-      label: `${i + 1}. ${d.location.address}`,
+      label: `${i + 1}. ${d.location.streetAddress}, ${d.location.area}`,
       type: d.status === 'in-transit' ? 'current' as const : 'delivery' as const,
     })),
     { lat: warehouseLocation.lat, lng: warehouseLocation.lng, label: 'Central Warehouse (End)', type: 'warehouse' as const },
@@ -104,7 +104,7 @@ export default function AssignedRoute() {
                   </div>
                   <div className="flex items-start gap-3">
                     <MapPin className="h-4 w-4 text-muted-foreground mt-1" />
-                    <p className="text-sm">{currentDelivery.location.address}</p>
+                    <p className="text-sm">{currentDelivery.location.streetAddress}, {currentDelivery.location.area}</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <Phone className="h-4 w-4 text-muted-foreground mt-1" />

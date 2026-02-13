@@ -4,6 +4,7 @@ import { StatCard } from '@/components/StatCard';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDelivery } from '@/contexts/DeliveryContext';
+import { formatFullAddress } from '@/lib/utils';
 import { Package, CheckCircle, Clock, MapPin, TrendingUp, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -116,7 +117,7 @@ export default function AgentDashboard() {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="font-medium">{delivery.location.customerName}</p>
-                        <p className="text-sm text-muted-foreground truncate">{delivery.location.address}</p>
+                        <p className="text-sm text-muted-foreground truncate">{formatFullAddress(delivery.location)}</p>
                       </div>
                       <StatusBadge status={delivery.status} />
                     </div>

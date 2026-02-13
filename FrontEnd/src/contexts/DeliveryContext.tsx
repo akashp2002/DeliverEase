@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { 
   mockDeliveryAgents, 
   mockScheduledDeliveries, 
@@ -7,6 +7,9 @@ import {
   ScheduledDelivery,
   DeliveryLocation 
 } from '@/data/mockData';
+import api from '@/lib/api';
+import { toast } from 'sonner';
+import { useAuth } from './AuthContext';
 
 interface OptimizedRouteData {
   sequence: ScheduledDelivery[];
@@ -20,6 +23,7 @@ interface DeliveryContextType {
   agents: DeliveryAgent[];
   deliveries: ScheduledDelivery[];
   optimizedRoutes: Record<string, OptimizedRouteData>;
+  isLoadingDeliveries: boolean;
   addAgent: (agent: Omit<DeliveryAgent, 'id' | 'assignedDeliveries' | 'completedToday'>) => void;
   removeAgent: (agentId: string) => void;
   updateAgentStatus: (agentId: string, status: DeliveryAgent['status']) => void;
@@ -27,6 +31,7 @@ interface DeliveryContextType {
   updateDeliveryStatus: (deliveryId: string, status: ScheduledDelivery['status']) => void;
   getAgentDeliveries: (agentId: string) => ScheduledDelivery[];
   optimizeRoute: (agentId: string) => OptimizedRouteData;
+  fetchDeliveries: () => Promise<void>;
 }
 
 const DeliveryContext = createContext<DeliveryContextType | undefined>(undefined);
@@ -47,16 +52,21 @@ function nearestNeighborOrder(
     let nearestDist = Infinity;
 
     for (let i = 0; i < remaining.length; i++) {
-      const dist = haversineDistance(current, remaining[i].location);
-      if (dist < nearestDist) {
-        nearestDist = dist;
-        nearestIdx = i;
+      const location = remaining[i].location;
+      if (location.lat !== undefined && location.lng !== undefined) {
+        const dist = haversineDistance(current, { lat: location.lat, lng: location.lng });
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestIdx = i;
+        }
       }
     }
 
     const next = remaining.splice(nearestIdx, 1)[0];
     ordered.push(next);
-    current = { lat: next.location.lat, lng: next.location.lng };
+    if (next.location.lat !== undefined && next.location.lng !== undefined) {
+      current = { lat: next.location.lat, lng: next.location.lng };
+    }
   }
 
   return ordered;
@@ -92,17 +102,68 @@ function totalRouteDistance(
   let total = 0;
   let prev = start;
   for (const d of deliveries) {
-    total += haversineDistance(prev, d.location);
-    prev = { lat: d.location.lat, lng: d.location.lng };
+    if (d.location.lat !== undefined && d.location.lng !== undefined) {
+      total += haversineDistance(prev, { lat: d.location.lat, lng: d.location.lng });
+      prev = { lat: d.location.lat, lng: d.location.lng };
+    }
   }
   total += haversineDistance(prev, end);
   return Math.round(total * 10) / 10;
 }
 
 export function DeliveryProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const [agents, setAgents] = useState<DeliveryAgent[]>(mockDeliveryAgents);
   const [deliveries, setDeliveries] = useState<ScheduledDelivery[]>(mockScheduledDeliveries);
   const [optimizedRoutes, setOptimizedRoutes] = useState<Record<string, OptimizedRouteData>>({});
+  const [isLoadingDeliveries, setIsLoadingDeliveries] = useState(false);
+
+  // Fetch deliveries from backend
+  const fetchDeliveries = useCallback(async () => {
+    setIsLoadingDeliveries(true);
+    try {
+      const response = await api.get('/deliveries');
+      if (response.data.success && response.data.data) {
+        // Transform backend data to match ScheduledDelivery interface
+        const transformedDeliveries = response.data.data.map((delivery: any) => ({
+          id: delivery._id,
+          orderId: delivery.orderId,
+          location: {
+            id: delivery.location._id,
+            ...delivery.location,
+          },
+          scheduledDate: delivery.scheduledDate,
+          scheduledTime: delivery.scheduledTime,
+          status: delivery.status,
+          agentId: delivery.agentId?._id || delivery.agentId,
+          area: delivery.area,
+          priority: delivery.priority,
+          packageWeight: delivery.packageWeight,
+        }));
+        setDeliveries(transformedDeliveries);
+        console.log('✓ Successfully loaded deliveries from API:', transformedDeliveries.length);
+      }
+    } catch (error: any) {
+      // Log the error for debugging, but don't show a toast since we're using mock data
+      const errorMsg = error.response?.data?.message || error.message || 'Unknown error';
+      const errorDetails = {
+        status: error.response?.status,
+        message: errorMsg,
+        url: error.config?.url,
+      };
+      console.warn('Failed to fetch deliveries from API, using mock data:', errorDetails);
+      // Keep using mockData if API fails - this is expected behavior
+    } finally {
+      setIsLoadingDeliveries(false);
+    }
+  }, []);
+
+  // Fetch deliveries only when user is authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchDeliveries();
+    }
+  }, [fetchDeliveries, isAuthenticated]);
 
   const addAgent = useCallback((agentData: Omit<DeliveryAgent, 'id' | 'assignedDeliveries' | 'completedToday'>) => {
     const agent: DeliveryAgent = {
@@ -122,17 +183,68 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
     setAgents(prev => prev.map(a => a.id === agentId ? { ...a, status } : a));
   }, []);
 
-  const addDelivery = useCallback((deliveryData: Omit<ScheduledDelivery, 'id' | 'orderId'>) => {
-    const delivery: ScheduledDelivery = {
-      id: `del-${Date.now()}`,
-      orderId: `ORD-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
-      ...deliveryData,
-    };
-    setDeliveries(prev => [delivery, ...prev]);
+  const addDelivery = useCallback(async (deliveryData: Omit<ScheduledDelivery, 'id' | 'orderId'>) => {
+    try {
+      // Generate orderId
+      const orderId = `ORD-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
+
+      console.log('🚀 SENDING TO API:', { orderId, street: deliveryData.location.streetAddress });
+
+      // Call backend API
+      const response = await api.post('/deliveries', {
+        orderId,
+        ...deliveryData,
+      });
+
+      console.log('✅ API SUCCESS:', response.data);
+
+      if (response.data.success) {
+        const createdDelivery = response.data.data;
+        
+        // Transform and add to local state
+        const transformedDelivery: ScheduledDelivery = {
+          id: createdDelivery._id,
+          orderId: createdDelivery.orderId,
+          location: {
+            id: createdDelivery.location._id,
+            ...createdDelivery.location,
+          },
+          scheduledDate: createdDelivery.scheduledDate,
+          scheduledTime: createdDelivery.scheduledTime,
+          status: createdDelivery.status,
+          agentId: createdDelivery.agentId?._id || createdDelivery.agentId,
+          area: createdDelivery.area,
+          priority: createdDelivery.priority,
+          packageWeight: createdDelivery.packageWeight,
+        };
+
+        setDeliveries(prev => [transformedDelivery, ...prev]);
+        toast.success(`Delivery ${orderId} created successfully!`);
+      }
+    } catch (error: any) {
+      console.error('❌ API ERROR:', error.response?.data || error.message);
+      console.error('Full response:', error.response);
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to create delivery';
+      toast.error(errorMsg);
+      // DO NOT create fake local delivery - throw error so component knows it failed
+      throw error;
+    }
   }, []);
 
-  const updateDeliveryStatus = useCallback((deliveryId: string, status: ScheduledDelivery['status']) => {
-    setDeliveries(prev => prev.map(d => d.id === deliveryId ? { ...d, status } : d));
+  const updateDeliveryStatus = useCallback(async (deliveryId: string, status: ScheduledDelivery['status']) => {
+    try {
+      // Try updating via API first
+      const response = await api.put(`/deliveries/${deliveryId}/status`, { status });
+      
+      if (response.data.success) {
+        setDeliveries(prev => prev.map(d => d.id === deliveryId ? { ...d, status } : d));
+        toast.success('Delivery status updated');
+      }
+    } catch (error: any) {
+      console.error('Failed to update delivery status:', error);
+      // Fallback to local update
+      setDeliveries(prev => prev.map(d => d.id === deliveryId ? { ...d, status } : d));
+    }
   }, []);
 
   const getAgentDeliveries = useCallback((agentId: string) => {
@@ -171,6 +283,7 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
         agents,
         deliveries,
         optimizedRoutes,
+        isLoadingDeliveries,
         addAgent,
         removeAgent,
         updateAgentStatus,
@@ -178,6 +291,7 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
         updateDeliveryStatus,
         getAgentDeliveries,
         optimizeRoute,
+        fetchDeliveries,
       }}
     >
       {children}

@@ -20,7 +20,8 @@ export default function AdminDashboard() {
     ...deliveries.slice(0, 4).map(d => ({
       lat: d.location.lat,
       lng: d.location.lng,
-      label: d.location.address,
+      label: `${d.location.streetAddress}, ${d.location.area}`,
+      // Full address: ${formatFullAddress(d.location)}
       type: 'delivery' as const,
     })),
   ];
@@ -109,7 +110,7 @@ export default function AdminDashboard() {
                   <tr key={delivery.id}>
                     <td className="font-medium">{delivery.orderId}</td>
                     <td>{delivery.location.customerName}</td>
-                    <td className="max-w-[200px] truncate">{delivery.location.address}</td>
+                    <td className="max-w-[200px] truncate">{delivery.location.streetAddress}, {delivery.location.area}</td>
                     <td>{delivery.scheduledTime}</td>
                     <td>
                       <span className={`status-badge ${

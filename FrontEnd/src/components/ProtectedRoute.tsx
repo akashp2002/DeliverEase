@@ -10,11 +10,19 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   const { user, isAuthenticated } = useAuth();
   const location = useLocation();
 
-  if (!isAuthenticated) {
+  // Check if user is authenticated
+  if (!isAuthenticated || !user) {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+  // Validate user has a role
+  if (!user.role) {
+    console.error('User role is missing. Attempt to access with incomplete user object.');
+    return <Navigate to="/" state={{ from: location }} replace />;
+  }
+
+  // Check if user has permission to access this route
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
     // Redirect to appropriate dashboard based on role
     const redirectPath = user.role === 'admin' ? '/admin' : '/agent';
     return <Navigate to={redirectPath} replace />;

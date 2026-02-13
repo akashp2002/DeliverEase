@@ -1,6 +1,7 @@
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useDelivery } from '@/contexts/DeliveryContext';
+import { formatFullAddress } from '@/lib/utils';
 import { Users, Package, MapPin, Clock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -106,10 +107,10 @@ export default function AssignDeliveries() {
                           <td>{idx + 1}</td>
                           <td className="font-medium">{del.orderId}</td>
                           <td>{del.location.customerName}</td>
-                          <td className="max-w-[200px] truncate" title={del.location.address}>
+                          <td className="max-w-[200px] truncate" title={formatFullAddress(del.location)}>
                             <span className="flex items-center gap-1">
                               <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                              {del.location.address}
+                              {formatFullAddress(del.location)}
                             </span>
                           </td>
                           <td>
@@ -174,7 +175,9 @@ export default function AssignDeliveries() {
                       <tr key={del.id}>
                         <td className="font-medium">{del.orderId}</td>
                         <td>{del.location.customerName}</td>
-                        <td className="max-w-[200px] truncate">{del.location.address}</td>
+                        <td className="max-w-[200px] truncate" title={formatFullAddress(del.location)}>
+                          {formatFullAddress(del.location)}
+                        </td>
                         <td>{del.area}</td>
                         <td>{del.scheduledTime}</td>
                         <td><StatusBadge status={del.status} /></td>

@@ -25,7 +25,7 @@ export default function MapVisualization() {
     ...orderedDeliveries.map((d, i) => ({
       lat: d.location.lat,
       lng: d.location.lng,
-      label: `${i + 1}. ${d.location.customerName} — ${d.location.address}`,
+      label: `${i + 1}. ${d.location.customerName} — ${d.location.streetAddress}, ${d.location.area}`,
       type: d.status === 'in-transit' ? 'current' as const : 'delivery' as const,
     })),
     { lat: warehouseLocation.lat, lng: warehouseLocation.lng, label: 'Central Warehouse (End)', type: 'warehouse' as const },
@@ -121,7 +121,7 @@ export default function MapVisualization() {
                       <tr key={d.id}>
                         <td className="font-bold text-accent">{idx + 1}</td>
                         <td className="font-medium">{d.location.customerName}</td>
-                        <td className="max-w-[200px] truncate">{d.location.address}</td>
+                        <td className="max-w-[200px] truncate">{d.location.streetAddress}, {d.location.area}</td>
                         <td className="text-xs text-muted-foreground">{d.location.lat.toFixed(4)}</td>
                         <td className="text-xs text-muted-foreground">{d.location.lng.toFixed(4)}</td>
                         <td>{d.scheduledTime}</td>

@@ -105,7 +105,7 @@ export default function DeliveryStatus() {
                     </div>
                     <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />{delivery.location.address}
+                        <MapPin className="h-3 w-3" />{delivery.location.streetAddress}, {delivery.location.area}
                       </span>
                       <span className="flex items-center gap-1">
                         <Phone className="h-3 w-3" />{delivery.location.phone}

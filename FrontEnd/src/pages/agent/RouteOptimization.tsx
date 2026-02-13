@@ -25,7 +25,7 @@ export default function AgentRouteOptimization() {
     { lat: warehouseLocation.lat, lng: warehouseLocation.lng, label: 'Warehouse (Start)', type: 'warehouse' as const },
     ...agentDeliveries.map((d, i) => ({
       lat: d.location.lat, lng: d.location.lng,
-      label: `${i + 1}. ${d.location.address}`, type: 'delivery' as const,
+      label: `${i + 1}. ${d.location.streetAddress}, ${d.location.area}`, type: 'delivery' as const,
     })),
     { lat: warehouseLocation.lat, lng: warehouseLocation.lng, label: 'Warehouse (End)', type: 'warehouse' as const },
   ];
@@ -35,7 +35,7 @@ export default function AgentRouteOptimization() {
     { lat: warehouseLocation.lat, lng: warehouseLocation.lng, label: 'Warehouse (Start)', type: 'warehouse' as const },
     ...routeData.sequence.map((d, i) => ({
       lat: d.location.lat, lng: d.location.lng,
-      label: `${i + 1}. ${d.location.address}`, type: 'delivery' as const,
+      label: `${i + 1}. ${d.location.streetAddress}, ${d.location.area}`, type: 'delivery' as const,
     })),
     { lat: warehouseLocation.lat, lng: warehouseLocation.lng, label: 'Warehouse (End)', type: 'warehouse' as const },
   ] : [];

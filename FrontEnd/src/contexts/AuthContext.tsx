@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { mockUsers } from '@/data/mockData';
+import api from '@/lib/api';
 
 export type UserRole = 'admin' | 'agent';
 
@@ -19,49 +19,79 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Validate user object has all required properties
+ */
+function isValidUser(obj: any): obj is User {
+  return (
+    obj &&
+    typeof obj === 'object' &&
+    typeof obj.email === 'string' &&
+    typeof obj.name === 'string' &&
+    (obj.role === 'admin' || obj.role === 'agent')
+  );
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
     // Check localStorage for existing session
     const stored = localStorage.getItem('delivery_user');
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return null;
+    
+    try {
+      const parsed = JSON.parse(stored);
+      // Validate the parsed user object
+      if (isValidUser(parsed)) {
+        return parsed;
+      } else {
+        // Clear invalid user data
+        localStorage.removeItem('delivery_user');
+        localStorage.removeItem('token');
+        console.warn('Invalid user data in localStorage. Cleared session.');
+        return null;
+      }
+    } catch (error) {
+      console.error('Failed to parse stored user data:', error);
+      localStorage.removeItem('delivery_user');
+      localStorage.removeItem('token');
+      return null;
+    }
   });
 
-  const login = useCallback(async (email: string, password: string) => {
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+const login = useCallback(async (email: string, password: string) => {
+  try {
+    const response = await api.post('/auth/login', { email, password });
 
-    // Check admin credentials
-    if (email === mockUsers.admin.email && password === mockUsers.admin.password) {
-      const userData: User = {
-        email: mockUsers.admin.email,
-        name: mockUsers.admin.name,
-        role: mockUsers.admin.role,
-      };
-      setUser(userData);
-      localStorage.setItem('delivery_user', JSON.stringify(userData));
-      return { success: true };
+    const data = response.data;
+
+    if (!data.success) {
+      return { success: false, error: data.message };
     }
 
-    // Check agent credentials
-    if (email === mockUsers.agent.email && password === mockUsers.agent.password) {
-      const userData: User = {
-        email: mockUsers.agent.email,
-        name: mockUsers.agent.name,
-        role: mockUsers.agent.role,
-        agentId: mockUsers.agent.agentId,
-      };
-      setUser(userData);
-      localStorage.setItem('delivery_user', JSON.stringify(userData));
-      return { success: true };
+    // Validate user object from server
+    if (!isValidUser(data.user)) {
+      return { success: false, error: 'Invalid user data received from server' };
     }
 
-    return { success: false, error: 'Invalid email or password' };
-  }, []);
+    // Save user + token
+    setUser(data.user);
+    localStorage.setItem("delivery_user", JSON.stringify(data.user));
+    localStorage.setItem("token", data.token);
+
+    return { success: true };
+
+  } catch (error: any) {
+    return { success: false, error: error.response?.data?.message || "Server not reachable" };
+  }
+}, []);
+
 
   const logout = useCallback(() => {
-    setUser(null);
-    localStorage.removeItem('delivery_user');
-  }, []);
+  setUser(null);
+  localStorage.removeItem('delivery_user');
+  localStorage.removeItem('token');
+}, []);
+
 
   return (
     <AuthContext.Provider
