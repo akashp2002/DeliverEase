@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useDelivery } from '@/contexts/DeliveryContext';
+import type { ScheduledDelivery, DeliveryAgent } from '../../data/mockData';
 import { DeliveryMap } from '@/components/DeliveryMap';
 import { Plus, Search, Filter, Calendar, Package, Loader2, MapPin, RefreshCw } from 'lucide-react';
 import { geocodeAddress, isCoordinateInIndia } from '@/lib/geocode';
+import api from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -87,7 +89,7 @@ const indianLocations: Record<string, Record<string, { lat: number; lng: number 
 const states = Object.keys(indianLocations).sort();
 
 export default function ScheduledDeliveries() {
-  const { deliveries, agents, addDelivery, fetchDeliveries, isLoadingDeliveries } = useDelivery();
+  const { deliveries, agents, addDelivery, fetchDeliveries, fetchAgents, isLoadingDeliveries } = useDelivery();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterArea, setFilterArea] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -112,10 +114,100 @@ export default function ScheduledDeliveries() {
     agentId: '',
   });
 
-  // Fetch deliveries on component mount
+  // State for assigning agent to existing delivery
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState('');
+  const [assignmentMode, setAssignmentMode] = useState<'assign' | 'edit'>('assign');
+
+  // State for viewing delivery details
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [selectedDeliveryForDetails, setSelectedDeliveryForDetails] = useState<ScheduledDelivery | null>(null);
+
+  const openDetailsDialog = async (delivery: ScheduledDelivery) => {
+    // Ensure agents are loaded before opening details
+    console.log('📂 Opening delivery details for:', delivery.id);
+    console.log('📋 Current agents count:', agents.length);
+    console.log('🏷️ Delivery agentId:', delivery.agentId);
+    
+    if (agents.length === 0) {
+      console.log('⏳ Agents not loaded, fetching now...');
+      await fetchAgents();
+    }
+    
+    console.log('✅ Agents ready, setting delivery details');
+    setSelectedDeliveryForDetails(delivery);
+    setDetailsDialogOpen(true);
+  };
+
+  const getAgentNameById = (agentId?: string) => {
+    if (!agentId) {
+      console.log('❌ No agentId provided');
+      return null;
+    }
+    console.log('🔍 LOOKING FOR AGENT WITH ID:', agentId);
+    console.log('📋 AGENTS ARRAY:', agents);
+    console.log('📋 AGENTS COUNT:', agents.length);
+    
+    // Try exact match
+    let found = agents.find(a => {
+      const matches = String(a.id) === String(agentId);
+      console.log(`  Comparing agent "${a.id}" (${typeof a.id}) === agentId "${agentId}" (${typeof agentId}) = ${matches}`);
+      return matches;
+    });
+    
+    if (found) {
+      console.log('✅ FOUND AGENT:', found);
+      return found;
+    }
+    
+    console.log('❌ AGENT NOT FOUND');
+    return null;
+  };
+
+  // Handle agent assignment
+  const handleAssignAgent = async () => {
+    if (!selectedDeliveryId || !selectedAgentId) {
+      toast.error('Please select an agent');
+      return;
+    }
+    
+    try {
+      // Call API to update delivery with agent
+      const response = await api.put(`/deliveries/${selectedDeliveryId}/assign`, {
+        agentId: selectedAgentId,
+      });
+      
+      if (response.data.success) {
+        toast.success(`Delivery assigned to ${agents.find(a => a.id === selectedAgentId)?.name}`);
+        await fetchDeliveries();
+        setAssignDialogOpen(false);
+        setSelectedDeliveryId(null);
+        setSelectedAgentId('');
+      }
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || 'Failed to assign delivery';
+      toast.error(errorMsg);
+    }
+  };
+
+  const openAssignDialog = (deliveryId: string, mode: 'assign' | 'edit' = 'assign') => {
+    const delivery = deliveries.find(d => d.id === deliveryId);
+    setSelectedDeliveryId(deliveryId);
+    setAssignmentMode(mode);
+    if (mode === 'edit' && delivery?.agentId) {
+      setSelectedAgentId(delivery.agentId);
+    } else {
+      setSelectedAgentId('');
+    }
+    setAssignDialogOpen(true);
+  };
+
+  // Fetch deliveries and agents on component mount
   useEffect(() => {
     fetchDeliveries();
-  }, []);
+    fetchAgents();
+  }, [fetchDeliveries, fetchAgents]);
 
   // Handle manual refresh
   const handleRefresh = async () => {
@@ -185,8 +277,8 @@ export default function ScheduledDeliveries() {
   }, {} as Record<string, number>);
 
   const handleAddDelivery = async () => {
-    if (!newDelivery.customerName || !newDelivery.streetAddress || !newDelivery.scheduledDate) {
-      toast.error('Please fill in all required fields');
+    if (!newDelivery.customerName || !newDelivery.streetAddress || !newDelivery.scheduledDate || !newDelivery.agentId) {
+      toast.error('Please fill all required fields including agent assignment');
       return;
     }
 
@@ -222,6 +314,7 @@ export default function ScheduledDeliveries() {
       console.log('📤 Component calling addDelivery...');
       await addDelivery({
         location: {
+          id: `loc-${Date.now()}`,
           streetAddress: newDelivery.streetAddress,
           area: newDelivery.area,
           city: newDelivery.city,
@@ -238,7 +331,7 @@ export default function ScheduledDeliveries() {
         scheduledDate: newDelivery.scheduledDate,
         scheduledTime: newDelivery.scheduledTime || '10:00 AM',
         status: 'pending',
-        agentId: (newDelivery.agentId && newDelivery.agentId.trim()) ? newDelivery.agentId : undefined,
+        agentId: newDelivery.agentId,
         area: newDelivery.area,
         priority: newDelivery.priority,
         packageWeight: Math.round(Math.random() * 5 * 10) / 10,
@@ -470,21 +563,29 @@ export default function ScheduledDeliveries() {
               </div>
 
               <div className="space-y-2">
-                <Label>Assign Delivery Agent (Optional)</Label>
+                <Label>Assign Delivery Agent *</Label>
                 <Select
                   value={newDelivery.agentId}
                   onValueChange={(value) => setNewDelivery({ ...newDelivery, agentId: value === 'none' ? '' : value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select agent (optional)" />
+                    <SelectValue placeholder="Select agent (required)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No Agent</SelectItem>
-                    {agents.filter(a => a.status !== 'off-duty').map(agent => (
-                      <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
-                    ))}
+                    {agents.length === 0 ? (
+                      <SelectItem value="loading" disabled>Loading agents...</SelectItem>
+                    ) : (
+                      agents.filter(a => a.status !== 'off-duty').map(agent => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.name} - {agent.status === 'available' ? '✓ Available' : 'On Delivery'} ({agent.assignedDeliveries} assigned)
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
+                {agents.filter(a => a.status !== 'off-duty').length === 0 && (
+                  <p className="text-xs text-red-600 font-medium">⚠️ No available agents. Cannot create delivery.</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -514,6 +615,212 @@ export default function ScheduledDeliveries() {
         </Dialog>
         </div>
       </div>
+
+      {/* Assign/Edit Agent Dialog */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{assignmentMode === 'edit' ? 'Change Delivery Agent' : 'Assign Delivery Agent'}</DialogTitle>
+            <DialogDescription>
+              {assignmentMode === 'edit' 
+                ? 'Select a different agent to reassign this delivery to.' 
+                : 'Select an available agent to assign this delivery to.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-3">
+              <Label htmlFor="agent-select" className="text-base font-medium">
+                {assignmentMode === 'edit' ? 'Change Agent' : 'Select Agent'}
+              </Label>
+              <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
+                <SelectTrigger id="agent-select">
+                  <SelectValue placeholder="Choose an agent..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {agents.filter(a => a.status !== 'off-duty').length === 0 ? (
+                    <SelectItem value="none" disabled>No available agents</SelectItem>
+                  ) : (
+                    agents.filter(a => a.status !== 'off-duty').map(agent => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
+                            {agent.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span>{agent.name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            {agent.status === 'available' ? '✓ Available' : 'On Delivery'} ({agent.assignedDeliveries} orders)
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleAssignAgent} disabled={!selectedAgentId}>
+              {assignmentMode === 'edit' ? 'Update Agent' : 'Assign Agent'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delivery Details Dialog */}
+      <Dialog open={detailsDialogOpen} onOpenChange={setDetailsDialogOpen}>
+        <DialogContent className="sm:max-w-[550px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Delivery Details</DialogTitle>
+          </DialogHeader>
+          {selectedDeliveryForDetails && (() => {
+            console.log('📦 Delivery agentId:', selectedDeliveryForDetails.agentId);
+            const deliveryAgent = getAgentNameById(selectedDeliveryForDetails.agentId);
+            return (
+              <div className="grid gap-4 py-4">
+                {/* Order Info */}
+                <div className="grid grid-cols-2 gap-4 pb-4 border-b">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Order ID</p>
+                    <p className="font-semibold text-base">{selectedDeliveryForDetails.orderId}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Priority</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                        selectedDeliveryForDetails.priority === 'high'
+                          ? 'bg-destructive/15 text-destructive'
+                          : selectedDeliveryForDetails.priority === 'medium'
+                          ? 'bg-warning/15 text-warning'
+                          : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {selectedDeliveryForDetails.priority.toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Status</p>
+                  <StatusBadge status={selectedDeliveryForDetails.status} />
+                </div>
+
+                {/* Assigned Agent */}
+                <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-sm text-muted-foreground mb-2">Assigned Delivery Agent</p>
+                  {selectedDeliveryForDetails.agentId ? (
+                    <div>
+                      {deliveryAgent ? (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-lg">
+                              {deliveryAgent.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-base">{deliveryAgent.name}</p>
+                              <p className="text-xs text-muted-foreground">{deliveryAgent.email}</p>
+                              <p className="text-xs text-muted-foreground">{deliveryAgent.phone}</p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openAssignDialog(selectedDeliveryForDetails.id, 'edit')}
+                            className="ml-2"
+                            title="Change assigned agent"
+                          >
+                            ✏️ Edit
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="text-amber-600 font-medium">
+                          <p>⏳ Loading agent details... (ID: {selectedDeliveryForDetails.agentId})</p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fetchAgents()}
+                            className="mt-2"
+                          >
+                            Retry Loading
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-amber-600 font-medium">⚠️ No agent assigned yet</p>
+                  )}
+                </div>
+
+                {/* Customer Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Customer Name</p>
+                    <p className="font-medium">{selectedDeliveryForDetails.location.customerName}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Phone</p>
+                    <p className="font-medium">{selectedDeliveryForDetails.location.phone}</p>
+                  </div>
+                </div>
+
+                {/* Address */}
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Delivery Address</p>
+                  <div className="bg-muted p-3 rounded-lg text-sm space-y-1">
+                    <p><strong>Street:</strong> {selectedDeliveryForDetails.location.streetAddress}</p>
+                    {selectedDeliveryForDetails.location.landmark && (
+                      <p><strong>Landmark:</strong> {selectedDeliveryForDetails.location.landmark}</p>
+                    )}
+                    <p><strong>Area:</strong> {selectedDeliveryForDetails.location.area}</p>
+                    <p><strong>City:</strong> {selectedDeliveryForDetails.location.city}</p>
+                    <p><strong>State:</strong> {selectedDeliveryForDetails.location.state}</p>
+                    <p><strong>Postal Code:</strong> {selectedDeliveryForDetails.location.postalCode}</p>
+                    <p><strong>Coordinates:</strong> {selectedDeliveryForDetails.location.lat.toFixed(4)}°, {selectedDeliveryForDetails.location.lng.toFixed(4)}°</p>
+                  </div>
+                </div>
+
+                {/* Schedule */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Scheduled Date</p>
+                    <p className="font-medium">{selectedDeliveryForDetails.scheduledDate}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Delivery Time</p>
+                    <p className="font-medium">{selectedDeliveryForDetails.scheduledTime}</p>
+                  </div>
+                </div>
+
+                {/* Package Info */}
+                <div>
+                  <p className="text-sm text-muted-foreground">Package Weight</p>
+                  <p className="font-medium">{selectedDeliveryForDetails.packageWeight} kg</p>
+                </div>
+
+                {/* Notes */}
+                {selectedDeliveryForDetails.location.notes && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">Notes</p>
+                    <p className="text-sm bg-muted p-3 rounded-lg">{selectedDeliveryForDetails.location.notes}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailsDialogOpen(false)}>Close</Button>
+            {selectedDeliveryForDetails && !selectedDeliveryForDetails.agentId && (
+              <Button onClick={() => {
+                openAssignDialog(selectedDeliveryForDetails.id, 'assign');
+                setDetailsDialogOpen(false);
+              }} className="gap-2">
+                ➕ Assign Agent
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Area Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
@@ -576,56 +883,76 @@ export default function ScheduledDeliveries() {
                     <th>Status</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {filteredDeliveries.map(delivery => {
-                    const agent = agents.find(a => a.id === delivery.agentId);
-                    return (
-                      <tr key={delivery.id}>
-                        <td className="font-medium">{delivery.orderId}</td>
-                        <td>{delivery.location.customerName}</td>
-                        <td className="max-w-[180px] truncate" title={`${delivery.location.streetAddress}, ${delivery.location.area}`}>
-                          {delivery.location.streetAddress}, {delivery.location.area}
-                        </td>
-                        <td className="text-xs text-muted-foreground">
-                          {delivery.location.lat.toFixed(4)}, {delivery.location.lng.toFixed(4)}
-                        </td>
-                        <td>{delivery.area}</td>
-                        <td>
-                          <div className="flex items-center gap-1 text-sm">
-                            <Calendar className="h-3 w-3 text-muted-foreground" />
-                            {delivery.scheduledDate} {delivery.scheduledTime}
-                          </div>
-                        </td>
-                        <td>
-                          {agent ? (
-                            <span className="flex items-center gap-2">
-                              <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center">
-                                {agent.name.charAt(0)}
-                              </div>
-                              <span className="text-sm">{agent.name}</span>
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">Unassigned</span>
-                          )}
-                        </td>
-                        <td>
-                          <span className={`status-badge ${
-                            delivery.priority === 'high'
-                              ? 'bg-destructive/15 text-destructive'
-                              : delivery.priority === 'medium'
-                              ? 'bg-warning/15 text-warning'
-                              : 'bg-muted text-muted-foreground'
-                          }`}>
-                            {delivery.priority}
-                          </span>
-                        </td>
-                        <td>
-                          <StatusBadge status={delivery.status} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
+               <tbody>
+  {filteredDeliveries.map(delivery => {
+    const agent = agents.find(a => String(a.id) === String(delivery.agentId));
+
+    return (
+      <tr
+        key={delivery.id}
+        onClick={() => openDetailsDialog(delivery)}
+        className="cursor-pointer hover:bg-accent/50 transition-colors"
+      >
+        <td className="font-medium">{delivery.orderId}</td>
+        <td>{delivery.location.customerName}</td>
+        <td
+          className="max-w-[180px] truncate"
+          title={`${delivery.location.streetAddress}, ${delivery.location.area}`}
+        >
+          {delivery.location.streetAddress}, {delivery.location.area}
+        </td>
+        <td className="text-xs text-muted-foreground">
+          {delivery.location.lat.toFixed(4)}, {delivery.location.lng.toFixed(4)}
+        </td>
+        <td>{delivery.area}</td>
+
+        <td>
+          <div className="flex items-center gap-1 text-sm">
+            <Calendar className="h-3 w-3 text-muted-foreground" />
+            {delivery.scheduledDate} {delivery.scheduledTime}
+          </div>
+        </td>
+
+        <td>
+          {agent ? (
+            <span className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-semibold">
+                {agent.name.charAt(0).toUpperCase()}
+              </div>
+              <span className="text-sm font-medium">{agent.name}</span>
+            </span>
+          ) : (
+            <button
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-amber-50 hover:bg-amber-100 dark:bg-amber-950 dark:hover:bg-amber-900 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-medium transition-colors"
+              onClick={() => openAssignDialog(delivery.id, 'assign')}
+            >
+              ➕ Assign Agent
+            </button>
+          )}
+        </td>
+
+        <td>
+          <span
+            className={`status-badge ${
+              delivery.priority === 'high'
+                ? 'bg-destructive/15 text-destructive'
+                : delivery.priority === 'medium'
+                ? 'bg-warning/15 text-warning'
+                : 'bg-muted text-muted-foreground'
+            }`}
+          >
+            {delivery.priority}
+          </span>
+        </td>
+
+        <td>
+          <StatusBadge status={delivery.status} />
+        </td>
+      </tr>
+    );
+  })}
+</tbody>
+
               </table>
             </div>
           </CardContent>

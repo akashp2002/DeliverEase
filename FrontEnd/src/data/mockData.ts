@@ -313,10 +313,11 @@ export const mockScheduledDeliveries: ScheduledDelivery[] = [
 
 // Warehouse/Hub location
 export const warehouseLocation = {
-  lat: 28.5921,
-  lng: 77.2194,
-  address: 'Central Warehouse, South Extension, New Delhi',
+  lat: 11.8745,
+  lng: 75.3704,
+  address: 'Central Warehouse, Kannur, Kerala',
 };
+
 
 // Mock route waypoints for visualization
 export const mockOptimizedRoute: OptimizedRoute = {

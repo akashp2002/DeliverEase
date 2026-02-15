@@ -24,6 +24,7 @@ interface DeliveryContextType {
   deliveries: ScheduledDelivery[];
   optimizedRoutes: Record<string, OptimizedRouteData>;
   isLoadingDeliveries: boolean;
+  isLoadingAgents: boolean;
   addAgent: (agent: Omit<DeliveryAgent, 'id' | 'assignedDeliveries' | 'completedToday'>) => void;
   removeAgent: (agentId: string) => void;
   updateAgentStatus: (agentId: string, status: DeliveryAgent['status']) => void;
@@ -32,6 +33,7 @@ interface DeliveryContextType {
   getAgentDeliveries: (agentId: string) => ScheduledDelivery[];
   optimizeRoute: (agentId: string) => OptimizedRouteData;
   fetchDeliveries: () => Promise<void>;
+  fetchAgents: () => Promise<void>;
 }
 
 const DeliveryContext = createContext<DeliveryContextType | undefined>(undefined);
@@ -117,6 +119,7 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
   const [deliveries, setDeliveries] = useState<ScheduledDelivery[]>(mockScheduledDeliveries);
   const [optimizedRoutes, setOptimizedRoutes] = useState<Record<string, OptimizedRouteData>>({});
   const [isLoadingDeliveries, setIsLoadingDeliveries] = useState(false);
+  const [isLoadingAgents, setIsLoadingAgents] = useState(false);
 
   // Fetch deliveries from backend
   const fetchDeliveries = useCallback(async () => {
@@ -125,21 +128,31 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
       const response = await api.get('/deliveries');
       if (response.data.success && response.data.data) {
         // Transform backend data to match ScheduledDelivery interface
-        const transformedDeliveries = response.data.data.map((delivery: any) => ({
-          id: delivery._id,
-          orderId: delivery.orderId,
-          location: {
-            id: delivery.location._id,
-            ...delivery.location,
-          },
-          scheduledDate: delivery.scheduledDate,
-          scheduledTime: delivery.scheduledTime,
-          status: delivery.status,
-          agentId: delivery.agentId?._id || delivery.agentId,
-          area: delivery.area,
-          priority: delivery.priority,
-          packageWeight: delivery.packageWeight,
-        }));
+        const transformedDeliveries = response.data.data.map((delivery: any) => {
+          const transformed = {
+            id: delivery._id,
+            orderId: delivery.orderId,
+            location: {
+              id: delivery.location._id,
+              ...delivery.location,
+            },
+            scheduledDate: delivery.scheduledDate,
+            scheduledTime: delivery.scheduledTime,
+            status: delivery.status,
+            agentId: delivery.agentId?._id
+  ? String(delivery.agentId._id)
+  : delivery.agentId
+  ? String(delivery.agentId)
+  : undefined,
+            area: delivery.area,
+            priority: delivery.priority,
+            packageWeight: delivery.packageWeight,
+          };
+          if (transformed.agentId) {
+            console.log(`[DELIVERY] orderId="${delivery.orderId}", agentId="${transformed.agentId}" (type: ${typeof transformed.agentId})`);
+          }
+          return transformed;
+        });
         setDeliveries(transformedDeliveries);
         console.log('✓ Successfully loaded deliveries from API:', transformedDeliveries.length);
       }
@@ -158,12 +171,49 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Fetch deliveries only when user is authenticated
+  // Fetch agents from backend
+  const fetchAgents = useCallback(async () => {
+    setIsLoadingAgents(true);
+    try {
+      const response = await api.get('/agents');
+      if (response.data.success && response.data.data) {
+        // Transform backend agent data
+        const transformedAgents = response.data.data.map((agent: any) => {
+          const transformed = {
+            id: String(agent._id),
+            name: agent.name,
+            email: agent.email,
+            phone: agent.phone,
+            status: agent.status || 'available',
+            assignedDeliveries: agent.assignedDeliveries || 0,
+            completedToday: agent.completedToday || 0,
+          };
+          console.log(`[AGENT] _id="${agent._id}" -> id="${transformed.id}", name="${agent.name}"`);
+          return transformed;
+        });
+        console.log('✅ ALL TRANSFORMED AGENTS:', transformedAgents);
+        setAgents(transformedAgents);
+        console.log('✓ Successfully loaded agents from API:', transformedAgents.length);
+      }
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || error.message || 'Unknown error';
+      console.warn('Failed to fetch agents from API, using mock data:', {
+        status: error.response?.status,
+        message: errorMsg,
+      });
+      // Keep using mockData if API fails
+    } finally {
+      setIsLoadingAgents(false);
+    }
+  }, []);
+
+  // Fetch deliveries and agents when user is authenticated
   useEffect(() => {
     if (isAuthenticated) {
       fetchDeliveries();
+      fetchAgents();
     }
-  }, [fetchDeliveries, isAuthenticated]);
+  }, [fetchDeliveries, fetchAgents, isAuthenticated]);
 
   const addAgent = useCallback((agentData: Omit<DeliveryAgent, 'id' | 'assignedDeliveries' | 'completedToday'>) => {
     const agent: DeliveryAgent = {
@@ -212,7 +262,12 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
           scheduledDate: createdDelivery.scheduledDate,
           scheduledTime: createdDelivery.scheduledTime,
           status: createdDelivery.status,
-          agentId: createdDelivery.agentId?._id || createdDelivery.agentId,
+          agentId:  createdDelivery.agentId?._id
+  ? String(createdDelivery.agentId._id)
+  : createdDelivery.agentId
+  ? String(createdDelivery.agentId)
+  : undefined,
+
           area: createdDelivery.area,
           priority: createdDelivery.priority,
           packageWeight: createdDelivery.packageWeight,
@@ -284,6 +339,7 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
         deliveries,
         optimizedRoutes,
         isLoadingDeliveries,
+        isLoadingAgents,
         addAgent,
         removeAgent,
         updateAgentStatus,
@@ -292,6 +348,7 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
         getAgentDeliveries,
         optimizeRoute,
         fetchDeliveries,
+        fetchAgents,
       }}
     >
       {children}

@@ -82,9 +82,8 @@ const DeliverySchema = new mongoose.Schema(
       default: 'pending',
     },
     agentId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'DeliveryAgent',
-      default: null,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',  
     },
     area: {
       type: String,
