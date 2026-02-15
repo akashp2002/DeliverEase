@@ -60,30 +60,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 const login = useCallback(async (email: string, password: string) => {
   try {
-    const response = await api.post('/auth/login', { email, password });
+    const res = await api.post('/auth/login', { email, password });
 
-    const data = response.data;
+    if (res.data.success) {
+      const backendUser = res.data.user;
 
-    if (!data.success) {
-      return { success: false, error: data.message };
+      const userData: User = {
+        email: backendUser.email,
+        name: backendUser.name,
+        role: backendUser.role,
+        agentId: backendUser.role === 'agent' ? backendUser.id : undefined,
+      };
+
+      setUser(userData);
+      localStorage.setItem('delivery_user', JSON.stringify(userData));
+      localStorage.setItem('token', res.data.token);
+
+      return { success: true };
     }
 
-    // Validate user object from server
-    if (!isValidUser(data.user)) {
-      return { success: false, error: 'Invalid user data received from server' };
-    }
-
-    // Save user + token
-    setUser(data.user);
-    localStorage.setItem("delivery_user", JSON.stringify(data.user));
-    localStorage.setItem("token", data.token);
-
-    return { success: true };
-
+    return { success: false, error: res.data.message };
   } catch (error: any) {
-    return { success: false, error: error.response?.data?.message || "Server not reachable" };
+    return { success: false, error: error.response?.data?.message || 'Login failed' };
   }
 }, []);
+
 
 
   const logout = useCallback(() => {

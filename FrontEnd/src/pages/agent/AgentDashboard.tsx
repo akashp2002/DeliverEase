@@ -13,7 +13,7 @@ export default function AgentDashboard() {
   const { user } = useAuth();
   const { getAgentDeliveries, optimizedRoutes } = useDelivery();
   const navigate = useNavigate();
-  const agentId = user?.agentId || 'agent-001';
+  const agentId = user?.agentId;
 
   const agentDeliveries = getAgentDeliveries(agentId);
   const pendingDeliveries = agentDeliveries.filter(d => d.status === 'pending');
