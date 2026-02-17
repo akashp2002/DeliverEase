@@ -67,7 +67,27 @@ export default function AssignedRoute() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <DeliveryMap waypoints={waypoints} showRoute={true} height="450px" />
+                     <DeliveryMap
+                      waypoints={waypoints}
+                      showRoute={!routeData}
+                      originalRoute={!routeData ? undefined : [
+                      { lat: warehouseLocation.lat, lng: warehouseLocation.lng },
+                      ...agentDeliveries.map(d => ({
+      lat: d.location.lat,
+      lng: d.location.lng
+    })),
+    { lat: warehouseLocation.lat, lng: warehouseLocation.lng }
+  ]}
+  optimizedRoute={!routeData ? undefined : [
+    { lat: warehouseLocation.lat, lng: warehouseLocation.lng },
+    ...routeData.sequence.map(d => ({
+      lat: d.location.lat,
+      lng: d.location.lng
+    })),
+    { lat: warehouseLocation.lat, lng: warehouseLocation.lng }
+  ]}
+  height="500px"
+/>
               <div className="flex items-center gap-6 mt-4 text-sm">
                 <div className="flex items-center gap-2">
                   <div className="h-3 w-3 rounded-full bg-primary" />
@@ -87,7 +107,7 @@ export default function AssignedRoute() {
 
           <div className="space-y-6">
             {currentDelivery && (
-              <Card className="ring-2 ring-accent">
+              <Card className="ring-2 ring-accent">   
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">Current Delivery</CardTitle>
