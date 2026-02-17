@@ -127,35 +127,41 @@ export function DeliveryMap({
     });
 
     // Draw route lines if enabled
-    if (showRoute && waypoints.length > 1) {
-      const routeCoords = waypoints.map(w => [w.lat, w.lng] as [number, number]);
-      L.polyline(routeCoords, {
-        color: '#0d9488',
-        weight: 4,
-        opacity: 0.8,
-        dashArray: showOptimizedRoute ? '10, 10' : undefined,
-      }).addTo(map);
-    }
+   async function drawRoadRoute(map, waypoints, color) {
+  try {
+    const coords = waypoints.map(w => `${w.lng},${w.lat}`).join(';');
+
+    const res = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`
+    );
+
+    const data = await res.json();
+
+    const route = data.routes[0].geometry.coordinates.map(
+      ([lng, lat]) => [lat, lng]
+    );
+
+    L.polyline(route, {
+      color,
+      weight: 5,
+      opacity: 0.9,
+    }).addTo(map);
+
+  } catch (err) {
+    console.error("Road route draw failed", err);
+  }
+}
 
     // Draw comparison routes if provided
-    if (originalRoute && originalRoute.length > 1) {
-      const originalCoords = originalRoute.map(w => [w.lat, w.lng] as [number, number]);
-      L.polyline(originalCoords, {
-        color: '#ef4444',
-        weight: 3,
-        opacity: 0.6,
-        dashArray: '10, 10',
-      }).addTo(map);
-    }
+   if (originalRoute && originalRoute.length > 1) {
+  drawRoadRoute(map, originalRoute, '#ef4444'); // red dashed
+  }
 
-    if (optimizedRoute && optimizedRoute.length > 1) {
-      const optimizedCoords = optimizedRoute.map(w => [w.lat, w.lng] as [number, number]);
-      L.polyline(optimizedCoords, {
-        color: '#10b981',
-        weight: 4,
-        opacity: 0.9,
-      }).addTo(map);
-    }
+
+   if (optimizedRoute && optimizedRoute.length > 1) {
+  drawRoadRoute(map, optimizedRoute, '#10b981'); // green optimized
+  }
+
 
     // Fit bounds to show all markers
     if (waypoints.length > 0) {

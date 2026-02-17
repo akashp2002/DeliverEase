@@ -44,7 +44,7 @@ export default function AgentRouteOptimization() {
     setIsOptimizing(true);
     // Simulate computation delay
     await new Promise(resolve => setTimeout(resolve, 1500));
-    const result = optimizeRoute(agentId);
+    const result = await  optimizeRoute(agentId);
     setIsOptimizing(false);
     setShowOptimized(true);
 

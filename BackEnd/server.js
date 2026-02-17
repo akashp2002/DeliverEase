@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const routeRoutes = require('./routes/route');
+
 
 // Import models to register them with mongoose
 require('./models/User');
@@ -32,6 +34,11 @@ mongoose
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/agents', require('./routes/agentRoutes'));
 app.use('/api/deliveries', require('./routes/deliveryRoutes'));
+app.use('/api/route', require('./routes/route'));
+
+app.use('/api/route', routeRoutes);
+
+
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { getRoadDistance } from '@/lib/routeService';
 import { 
   mockDeliveryAgents, 
   mockScheduledDeliveries, 
   warehouseLocation,
   DeliveryAgent, 
-  ScheduledDelivery,
-  DeliveryLocation 
+  ScheduledDelivery
 } from '@/data/mockData';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -36,17 +36,14 @@ interface DeliveryContextType {
   fetchAgents: () => Promise<void>;
 }
 
+
 const DeliveryContext = createContext<DeliveryContextType | undefined>(undefined);
 
-// --- Nearest-Neighbor Heuristic ---
-function nearestNeighborOrder(
-  start: { lat: number; lng: number },
-  deliveries: ScheduledDelivery[]
-): ScheduledDelivery[] {
-  if (deliveries.length <= 1) return [...deliveries];
+/* ---------------- ROAD DISTANCE FUNCTIONS ---------------- */
 
+async function nearestNeighborRoad(start, deliveries) {
   const remaining = [...deliveries];
-  const ordered: ScheduledDelivery[] = [];
+  const ordered = [];
   let current = start;
 
   while (remaining.length > 0) {
@@ -54,160 +51,130 @@ function nearestNeighborOrder(
     let nearestDist = Infinity;
 
     for (let i = 0; i < remaining.length; i++) {
-      const location = remaining[i].location;
-      if (location.lat !== undefined && location.lng !== undefined) {
-        const dist = haversineDistance(current, { lat: location.lat, lng: location.lng });
-        if (dist < nearestDist) {
-          nearestDist = dist;
-          nearestIdx = i;
-        }
+      const loc = remaining[i].location;
+
+      const dist = await getRoadDistance(current, {
+        lat: loc.lat,
+        lng: loc.lng
+      });
+
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestIdx = i;
       }
     }
 
     const next = remaining.splice(nearestIdx, 1)[0];
     ordered.push(next);
-    if (next.location.lat !== undefined && next.location.lng !== undefined) {
-      current = { lat: next.location.lat, lng: next.location.lng };
-    }
+
+    current = {
+      lat: next.location.lat,
+      lng: next.location.lng
+    };
   }
 
   return ordered;
 }
 
-// --- Haversine distance in km ---
-function haversineDistance(
-  a: { lat: number; lng: number },
-  b: { lat: number; lng: number }
-): number {
-  const R = 6371;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-
-  const x =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-}
-
-function toRad(deg: number) {
-  return (deg * Math.PI) / 180;
-}
-
-// --- Calculate total route distance ---
-function totalRouteDistance(
-  start: { lat: number; lng: number },
-  deliveries: ScheduledDelivery[],
-  end: { lat: number; lng: number }
-): number {
+async function totalRoadDistance(start, deliveries, end) {
   let total = 0;
   let prev = start;
+
   for (const d of deliveries) {
-    if (d.location.lat !== undefined && d.location.lng !== undefined) {
-      total += haversineDistance(prev, { lat: d.location.lat, lng: d.location.lng });
-      prev = { lat: d.location.lat, lng: d.location.lng };
-    }
+    const dist = await getRoadDistance(prev, {
+      lat: d.location.lat,
+      lng: d.location.lng
+    });
+
+    total += dist;
+
+    prev = {
+      lat: d.location.lat,
+      lng: d.location.lng
+    };
   }
-  total += haversineDistance(prev, end);
+
+  total += await getRoadDistance(prev, end);
+
   return Math.round(total * 10) / 10;
 }
 
+/* ---------------- PROVIDER ---------------- */
+
 export function DeliveryProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
+
   const [agents, setAgents] = useState<DeliveryAgent[]>(mockDeliveryAgents);
   const [deliveries, setDeliveries] = useState<ScheduledDelivery[]>(mockScheduledDeliveries);
   const [optimizedRoutes, setOptimizedRoutes] = useState<Record<string, OptimizedRouteData>>({});
   const [isLoadingDeliveries, setIsLoadingDeliveries] = useState(false);
   const [isLoadingAgents, setIsLoadingAgents] = useState(false);
 
+  /* ---------------- FETCH ---------------- */
+
   // Fetch deliveries from backend
   const fetchDeliveries = useCallback(async () => {
-    setIsLoadingDeliveries(true);
-    try {
-      const response = await api.get('/deliveries');
-      if (response.data.success && response.data.data) {
-        // Transform backend data to match ScheduledDelivery interface
-        const transformedDeliveries = response.data.data.map((delivery: any) => {
-          const transformed = {
-            id: delivery._id,
-            orderId: delivery.orderId,
-            location: {
-              id: delivery.location._id,
-              ...delivery.location,
-            },
-            scheduledDate: delivery.scheduledDate,
-            scheduledTime: delivery.scheduledTime,
-            status: delivery.status,
-            agentId: delivery.agentId?._id
-  ? String(delivery.agentId._id)
-  : delivery.agentId
-  ? String(delivery.agentId)
-  : undefined,
-            area: delivery.area,
-            priority: delivery.priority,
-            packageWeight: delivery.packageWeight,
-          };
-          if (transformed.agentId) {
-            console.log(`[DELIVERY] orderId="${delivery.orderId}", agentId="${transformed.agentId}" (type: ${typeof transformed.agentId})`);
-          }
-          return transformed;
-        });
-        setDeliveries(transformedDeliveries);
-        console.log('✓ Successfully loaded deliveries from API:', transformedDeliveries.length);
-      }
-    } catch (error: any) {
-      // Log the error for debugging, but don't show a toast since we're using mock data
-      const errorMsg = error.response?.data?.message || error.message || 'Unknown error';
-      const errorDetails = {
-        status: error.response?.status,
-        message: errorMsg,
-        url: error.config?.url,
-      };
-      console.warn('Failed to fetch deliveries from API, using mock data:', errorDetails);
-      // Keep using mockData if API fails - this is expected behavior
-    } finally {
-      setIsLoadingDeliveries(false);
+  setIsLoadingDeliveries(true);
+  try {
+    const response = await api.get('/deliveries');
+
+    if (response.data.success && response.data.data) {
+      const transformedDeliveries = response.data.data.map((delivery: any) => ({
+        id: delivery._id,
+        orderId: delivery.orderId,
+        location: {
+          id: delivery.location._id,
+          ...delivery.location,
+        },
+        scheduledDate: delivery.scheduledDate,
+        scheduledTime: delivery.scheduledTime,
+        status: delivery.status,
+        agentId: delivery.agentId?._id
+          ? String(delivery.agentId._id)
+          : delivery.agentId
+          ? String(delivery.agentId)
+          : undefined,
+        area: delivery.area,
+        priority: delivery.priority,
+        packageWeight: delivery.packageWeight,
+      }));
+
+      setDeliveries(transformedDeliveries);
     }
-  }, []);
+  } catch (error) {
+    console.warn("Failed to fetch deliveries", error);
+  } finally {
+    setIsLoadingDeliveries(false); // ✅ VERY IMPORTANT
+  }
+}, []);
 
   // Fetch agents from backend
-  const fetchAgents = useCallback(async () => {
-    setIsLoadingAgents(true);
-    try {
-      const response = await api.get('/agents');
-      if (response.data.success && response.data.data) {
-        // Transform backend agent data
-        const transformedAgents = response.data.data.map((agent: any) => {
-          const transformed = {
-            id: String(agent._id),
-            name: agent.name,
-            email: agent.email,
-            phone: agent.phone,
-            status: agent.status || 'available',
-            assignedDeliveries: agent.assignedDeliveries || 0,
-            completedToday: agent.completedToday || 0,
-          };
-          console.log(`[AGENT] _id="${agent._id}" -> id="${transformed.id}", name="${agent.name}"`);
-          return transformed;
-        });
-        console.log('✅ ALL TRANSFORMED AGENTS:', transformedAgents);
-        setAgents(transformedAgents);
-        console.log('✓ Successfully loaded agents from API:', transformedAgents.length);
-      }
-    } catch (error: any) {
-      const errorMsg = error.response?.data?.message || error.message || 'Unknown error';
-      console.warn('Failed to fetch agents from API, using mock data:', {
-        status: error.response?.status,
-        message: errorMsg,
-      });
-      // Keep using mockData if API fails
-    } finally {
-      setIsLoadingAgents(false);
-    }
-  }, []);
+const fetchAgents = useCallback(async () => {
+  setIsLoadingAgents(true);
+  try {
+    const response = await api.get('/agents');
 
-  // Fetch deliveries and agents when user is authenticated
+    if (response.data.success && response.data.data) {
+      const transformedAgents = response.data.data.map((agent: any) => ({
+        id: String(agent._id),
+        name: agent.name,
+        email: agent.email,
+        phone: agent.phone,
+        status: agent.status || 'available',
+        assignedDeliveries: agent.assignedDeliveries || 0,
+        completedToday: agent.completedToday || 0,
+      }));
+
+      setAgents(transformedAgents);
+    }
+  } catch (error) {
+    console.warn("Failed to fetch agents", error);
+  } finally {
+    setIsLoadingAgents(false); // ✅ VERY IMPORTANT
+  }
+}, []);
+
+   // Fetch deliveries and agents when user is authenticated
   useEffect(() => {
     if (isAuthenticated) {
       fetchDeliveries();
@@ -301,35 +268,71 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
       setDeliveries(prev => prev.map(d => d.id === deliveryId ? { ...d, status } : d));
     }
   }, []);
+  
+  
+  
+
+  /* ---------------- HELPERS ---------------- */
 
   const getAgentDeliveries = useCallback((agentId: string) => {
     return deliveries.filter(d => d.agentId === agentId);
   }, [deliveries]);
 
-  const optimizeRoute = useCallback((agentId: string): OptimizedRouteData => {
-    const agentDels = deliveries.filter(d => d.agentId === agentId && d.status !== 'delivered');
-    
-    // Original distance (in assignment order)
-    const originalDistance = totalRouteDistance(warehouseLocation, agentDels, warehouseLocation);
-    
-    // Apply Nearest-Neighbor heuristic
-    const optimizedSequence = nearestNeighborOrder(warehouseLocation, agentDels);
-    const optDistance = totalRouteDistance(warehouseLocation, optimizedSequence, warehouseLocation);
+  /* ---------------- OPTIMIZATION ---------------- */
 
-    // Estimate time: assume average speed 25 km/h in city + 5 min per stop
+  const optimizeRoute = useCallback(async (agentId: string): Promise<OptimizedRouteData> => {
+
+    const agentDels = deliveries.filter(
+      d => d.agentId === agentId && d.status !== 'delivered'
+    );
+
+    if (agentDels.length === 0) {
+      return {
+        sequence: [],
+        totalDistance: 0,
+        optimizedDistance: 0,
+        totalTime: 0,
+        optimizedTime: 0,
+      };
+    }
+
+    // original
+    const originalDistance = await totalRoadDistance(
+      warehouseLocation,
+      agentDels,
+      warehouseLocation
+    );
+
+    // optimized
+    const optimizedSequence = await nearestNeighborRoad(
+      warehouseLocation,
+      agentDels
+    );
+
+    const optimizedDistance = await totalRoadDistance(
+      warehouseLocation,
+      optimizedSequence,
+      warehouseLocation
+    );
+
     const originalTime = Math.round((originalDistance / 25) * 60 + agentDels.length * 5);
-    const optimizedTime = Math.round((optDistance / 25) * 60 + optimizedSequence.length * 5);
+    const optimizedTime = Math.round((optimizedDistance / 25) * 60 + optimizedSequence.length * 5);
 
-    const routeData: OptimizedRouteData = {
+    const routeData = {
       sequence: optimizedSequence,
       totalDistance: originalDistance,
-      optimizedDistance: optDistance,
+      optimizedDistance,
       totalTime: originalTime,
-      optimizedTime: optimizedTime,
+      optimizedTime,
     };
 
-    setOptimizedRoutes(prev => ({ ...prev, [agentId]: routeData }));
+    setOptimizedRoutes(prev => ({
+      ...prev,
+      [agentId]: routeData,
+    }));
+
     return routeData;
+
   }, [deliveries]);
 
   return (
@@ -340,12 +343,12 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
         optimizedRoutes,
         isLoadingDeliveries,
         isLoadingAgents,
-        addAgent,
+        getAgentDeliveries,
+         addAgent,
         removeAgent,
         updateAgentStatus,
         addDelivery,
         updateDeliveryStatus,
-        getAgentDeliveries,
         optimizeRoute,
         fetchDeliveries,
         fetchAgents,
@@ -358,8 +361,6 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
 
 export function useDelivery() {
   const context = useContext(DeliveryContext);
-  if (!context) {
-    throw new Error('useDelivery must be used within a DeliveryProvider');
-  }
+  if (!context) throw new Error('useDelivery must be used inside provider');
   return context;
 }
