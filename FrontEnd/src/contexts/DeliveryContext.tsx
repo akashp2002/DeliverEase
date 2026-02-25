@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { getRoadDistance } from '@/lib/routeService';
-import { 
-  mockDeliveryAgents, 
-  mockScheduledDeliveries, 
+import { getDistanceMatrix } from '@/lib/routeService';
+import {
+  mockDeliveryAgents,
+  mockScheduledDeliveries,
   warehouseLocation,
-  DeliveryAgent, 
+  DeliveryAgent,
   ScheduledDelivery
 } from '@/data/mockData';
 import api from '@/lib/api';
@@ -31,7 +31,7 @@ interface DeliveryContextType {
   addDelivery: (delivery: Omit<ScheduledDelivery, 'id' | 'orderId'>) => void;
   updateDeliveryStatus: (deliveryId: string, status: ScheduledDelivery['status']) => void;
   getAgentDeliveries: (agentId: string) => ScheduledDelivery[];
-  optimizeRoute: (agentId: string) => OptimizedRouteData;
+  optimizeRoute: (agentId: string) => Promise<OptimizedRouteData>;
   fetchDeliveries: () => Promise<void>;
   fetchAgents: () => Promise<void>;
 }
@@ -39,63 +39,48 @@ interface DeliveryContextType {
 
 const DeliveryContext = createContext<DeliveryContextType | undefined>(undefined);
 
-/* ---------------- ROAD DISTANCE FUNCTIONS ---------------- */
+/* ---------------- MATRIX-BASED HELPERS (no per-pair API calls) ---------------- */
 
-async function nearestNeighborRoad(start, deliveries) {
-  const remaining = [...deliveries];
-  const ordered = [];
-  let current = start;
+// Nearest Neighbor using a pre-fetched distance matrix.
+// warehouseIdx = 0, delivery indices = 1..N
+function nearestNeighborMatrix(
+  deliveryIndices: number[],
+  matrix: number[][]
+): number[] {
+  const remaining = [...deliveryIndices];
+  const ordered: number[] = [];
+  let current = 0; // start from warehouse (index 0)
 
   while (remaining.length > 0) {
     let nearestIdx = 0;
     let nearestDist = Infinity;
 
     for (let i = 0; i < remaining.length; i++) {
-      const loc = remaining[i].location;
-
-      const dist = await getRoadDistance(current, {
-        lat: loc.lat,
-        lng: loc.lng
-      });
-
+      const dist = matrix[current][remaining[i]];
       if (dist < nearestDist) {
         nearestDist = dist;
         nearestIdx = i;
       }
     }
 
-    const next = remaining.splice(nearestIdx, 1)[0];
-    ordered.push(next);
-
-    current = {
-      lat: next.location.lat,
-      lng: next.location.lng
-    };
+    const chosen = remaining.splice(nearestIdx, 1)[0];
+    ordered.push(chosen);
+    current = chosen;
   }
 
   return ordered;
 }
 
-async function totalRoadDistance(start, deliveries, end) {
+// Compute total route distance using the matrix.
+// Route: warehouse(0) → indices[0] → indices[1] → ... → warehouse(0)
+function totalDistanceMatrix(orderedIndices: number[], matrix: number[][]): number {
   let total = 0;
-  let prev = start;
-
-  for (const d of deliveries) {
-    const dist = await getRoadDistance(prev, {
-      lat: d.location.lat,
-      lng: d.location.lng
-    });
-
-    total += dist;
-
-    prev = {
-      lat: d.location.lat,
-      lng: d.location.lng
-    };
+  let prev = 0; // warehouse
+  for (const idx of orderedIndices) {
+    total += matrix[prev][idx];
+    prev = idx;
   }
-
-  total += await getRoadDistance(prev, end);
-
+  total += matrix[prev][0]; // return to warehouse
   return Math.round(total * 10) / 10;
 }
 
@@ -114,67 +99,67 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
 
   // Fetch deliveries from backend
   const fetchDeliveries = useCallback(async () => {
-  setIsLoadingDeliveries(true);
-  try {
-    const response = await api.get('/deliveries');
+    setIsLoadingDeliveries(true);
+    try {
+      const response = await api.get('/deliveries');
 
-    if (response.data.success && response.data.data) {
-      const transformedDeliveries = response.data.data.map((delivery: any) => ({
-        id: delivery._id,
-        orderId: delivery.orderId,
-        location: {
-          id: delivery.location._id,
-          ...delivery.location,
-        },
-        scheduledDate: delivery.scheduledDate,
-        scheduledTime: delivery.scheduledTime,
-        status: delivery.status,
-        agentId: delivery.agentId?._id
-          ? String(delivery.agentId._id)
-          : delivery.agentId
-          ? String(delivery.agentId)
-          : undefined,
-        area: delivery.area,
-        priority: delivery.priority,
-        packageWeight: delivery.packageWeight,
-      }));
+      if (response.data.success && response.data.data) {
+        const transformedDeliveries = response.data.data.map((delivery: any) => ({
+          id: delivery._id,
+          orderId: delivery.orderId,
+          location: {
+            id: delivery.location._id,
+            ...delivery.location,
+          },
+          scheduledDate: delivery.scheduledDate,
+          scheduledTime: delivery.scheduledTime,
+          status: delivery.status,
+          agentId: delivery.agentId?._id
+            ? String(delivery.agentId._id)
+            : delivery.agentId
+              ? String(delivery.agentId)
+              : undefined,
+          area: delivery.area,
+          priority: delivery.priority,
+          packageWeight: delivery.packageWeight,
+        }));
 
-      setDeliveries(transformedDeliveries);
+        setDeliveries(transformedDeliveries);
+      }
+    } catch (error) {
+      console.warn("Failed to fetch deliveries", error);
+    } finally {
+      setIsLoadingDeliveries(false); // ✅ VERY IMPORTANT
     }
-  } catch (error) {
-    console.warn("Failed to fetch deliveries", error);
-  } finally {
-    setIsLoadingDeliveries(false); // ✅ VERY IMPORTANT
-  }
-}, []);
+  }, []);
 
   // Fetch agents from backend
-const fetchAgents = useCallback(async () => {
-  setIsLoadingAgents(true);
-  try {
-    const response = await api.get('/agents');
+  const fetchAgents = useCallback(async () => {
+    setIsLoadingAgents(true);
+    try {
+      const response = await api.get('/agents');
 
-    if (response.data.success && response.data.data) {
-      const transformedAgents = response.data.data.map((agent: any) => ({
-        id: String(agent._id),
-        name: agent.name,
-        email: agent.email,
-        phone: agent.phone,
-        status: agent.status || 'available',
-        assignedDeliveries: agent.assignedDeliveries || 0,
-        completedToday: agent.completedToday || 0,
-      }));
+      if (response.data.success && response.data.data) {
+        const transformedAgents = response.data.data.map((agent: any) => ({
+          id: String(agent._id),
+          name: agent.name,
+          email: agent.email,
+          phone: agent.phone,
+          status: agent.status || 'available',
+          assignedDeliveries: agent.assignedDeliveries || 0,
+          completedToday: agent.completedToday || 0,
+        }));
 
-      setAgents(transformedAgents);
+        setAgents(transformedAgents);
+      }
+    } catch (error) {
+      console.warn("Failed to fetch agents", error);
+    } finally {
+      setIsLoadingAgents(false); // ✅ VERY IMPORTANT
     }
-  } catch (error) {
-    console.warn("Failed to fetch agents", error);
-  } finally {
-    setIsLoadingAgents(false); // ✅ VERY IMPORTANT
-  }
-}, []);
+  }, []);
 
-   // Fetch deliveries and agents when user is authenticated
+  // Fetch deliveries and agents when user is authenticated
   useEffect(() => {
     if (isAuthenticated) {
       fetchDeliveries();
@@ -217,7 +202,7 @@ const fetchAgents = useCallback(async () => {
 
       if (response.data.success) {
         const createdDelivery = response.data.data;
-        
+
         // Transform and add to local state
         const transformedDelivery: ScheduledDelivery = {
           id: createdDelivery._id,
@@ -229,11 +214,11 @@ const fetchAgents = useCallback(async () => {
           scheduledDate: createdDelivery.scheduledDate,
           scheduledTime: createdDelivery.scheduledTime,
           status: createdDelivery.status,
-          agentId:  createdDelivery.agentId?._id
-  ? String(createdDelivery.agentId._id)
-  : createdDelivery.agentId
-  ? String(createdDelivery.agentId)
-  : undefined,
+          agentId: createdDelivery.agentId?._id
+            ? String(createdDelivery.agentId._id)
+            : createdDelivery.agentId
+              ? String(createdDelivery.agentId)
+              : undefined,
 
           area: createdDelivery.area,
           priority: createdDelivery.priority,
@@ -257,7 +242,7 @@ const fetchAgents = useCallback(async () => {
     try {
       // Try updating via API first
       const response = await api.put(`/deliveries/${deliveryId}/status`, { status });
-      
+
       if (response.data.success) {
         setDeliveries(prev => prev.map(d => d.id === deliveryId ? { ...d, status } : d));
         toast.success('Delivery status updated');
@@ -268,9 +253,9 @@ const fetchAgents = useCallback(async () => {
       setDeliveries(prev => prev.map(d => d.id === deliveryId ? { ...d, status } : d));
     }
   }, []);
-  
-  
-  
+
+
+
 
   /* ---------------- HELPERS ---------------- */
 
@@ -296,24 +281,27 @@ const fetchAgents = useCallback(async () => {
       };
     }
 
-    // original
-    const originalDistance = await totalRoadDistance(
-      warehouseLocation,
-      agentDels,
-      warehouseLocation
-    );
+    // Build locations array: index 0 = warehouse, indices 1..N = deliveries
+    const locations = [
+      { lat: warehouseLocation.lat, lng: warehouseLocation.lng },
+      ...agentDels.map(d => ({ lat: d.location.lat, lng: d.location.lng })),
+    ];
 
-    // optimized
-    const optimizedSequence = await nearestNeighborRoad(
-      warehouseLocation,
-      agentDels
-    );
+    // ✅ ONE API call — returns full NxN distance matrix in km
+    const matrix = await getDistanceMatrix(locations);
 
-    const optimizedDistance = await totalRoadDistance(
-      warehouseLocation,
-      optimizedSequence,
-      warehouseLocation
-    );
+    // Delivery indices in the matrix (1-based; 0 = warehouse)
+    const deliveryIndices = agentDels.map((_, i) => i + 1);
+
+    // Original order total distance (warehouse → as-is order → warehouse)
+    const originalDistance = totalDistanceMatrix(deliveryIndices, matrix);
+
+    // Nearest Neighbor optimized order (fully synchronous — no more API calls)
+    const optimizedMatrixIndices = nearestNeighborMatrix(deliveryIndices, matrix);
+    const optimizedSequence = optimizedMatrixIndices.map(idx => agentDels[idx - 1]);
+
+    // Optimized total distance
+    const optimizedDistance = totalDistanceMatrix(optimizedMatrixIndices, matrix);
 
     const originalTime = Math.round((originalDistance / 25) * 60 + agentDels.length * 5);
     const optimizedTime = Math.round((optimizedDistance / 25) * 60 + optimizedSequence.length * 5);
@@ -344,7 +332,7 @@ const fetchAgents = useCallback(async () => {
         isLoadingDeliveries,
         isLoadingAgents,
         getAgentDeliveries,
-         addAgent,
+        addAgent,
         removeAgent,
         updateAgentStatus,
         addDelivery,
