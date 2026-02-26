@@ -36,7 +36,7 @@ const createCustomIcon = (type: 'warehouse' | 'delivery' | 'current' = 'delivery
     delivery: '#0d9488',
     current: '#f59e0b',
   };
-  
+
   return L.divIcon({
     className: 'custom-marker',
     html: `
@@ -91,11 +91,11 @@ export function DeliveryMap({
     }
 
     // Calculate center from waypoints if not provided
-    const mapCenter = center || (waypoints.length > 0 
+    const mapCenter = center || (waypoints.length > 0
       ? {
-          lat: waypoints.reduce((sum, w) => sum + w.lat, 0) / waypoints.length,
-          lng: waypoints.reduce((sum, w) => sum + w.lng, 0) / waypoints.length,
-        }
+        lat: waypoints.reduce((sum, w) => sum + w.lat, 0) / waypoints.length,
+        lng: waypoints.reduce((sum, w) => sum + w.lng, 0) / waypoints.length,
+      }
       : { lat: 28.6139, lng: 77.2090 }); // Default: New Delhi
 
     // Create map
@@ -127,40 +127,35 @@ export function DeliveryMap({
     });
 
     // Draw route lines if enabled
-   async function drawRoadRoute(map, waypoints, color) {
-  try {
-    const coords = waypoints.map(w => `${w.lng},${w.lat}`).join(';');
+    async function drawRoadRoute(map: L.Map, routeWaypoints: Waypoint[], color: string) {
+      if (!routeWaypoints || routeWaypoints.length < 2) return;
+      try {
+        const coords = routeWaypoints.map(w => `${w.lng},${w.lat}`).join(';');
+        const res = await fetch(
+          `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`
+        );
+        const data = await res.json();
 
-    const res = await fetch(
-      `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`
-    );
+        if (data.routes && data.routes[0]) {
+          const route = data.routes[0].geometry.coordinates.map(
+            ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
+          );
 
-    const data = await res.json();
+          L.polyline(route, {
+            color,
+            weight: 5,
+            opacity: 0.9,
+          }).addTo(map);
+        }
+      } catch (err) {
+        console.error("Road route draw failed", err);
+      }
+    }
 
-    const route = data.routes[0].geometry.coordinates.map(
-      ([lng, lat]) => [lat, lng]
-    );
-
-    L.polyline(route, {
-      color,
-      weight: 5,
-      opacity: 0.9,
-    }).addTo(map);
-
-  } catch (err) {
-    console.error("Road route draw failed", err);
-  }
-}
-
-    // Draw comparison routes if provided
-   if (originalRoute && originalRoute.length > 1) {
-  drawRoadRoute(map, originalRoute, '#ef4444'); // red dashed
-  }
-
-
-   if (optimizedRoute && optimizedRoute.length > 1) {
-  drawRoadRoute(map, optimizedRoute, '#10b981'); // green optimized
-  }
+    if (showRoute && waypoints.length > 1) {
+      // If the map is explicitly asked to show the optimized route, make it green, else blue
+      drawRoadRoute(map, waypoints, showOptimizedRoute ? '#10b981' : '#3b82f6');
+    }
 
 
     // Fit bounds to show all markers

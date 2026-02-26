@@ -4,7 +4,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { AgentProvider } from "@/contexts/AgentContext";
 import { DeliveryProvider } from "@/contexts/DeliveryContext";
+import { RouteProvider } from "@/contexts/RouteContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 // Pages
@@ -30,55 +32,59 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <DeliveryProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={<LoginPage />} />
+      <AgentProvider>
+        <DeliveryProvider>
+          <RouteProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
+                  {/* Public Routes */}
+                  <Route path="/" element={<LoginPage />} />
 
-              {/* Admin Routes */}
-              <Route path="/admin" element={
-                <ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>
-              } />
-              <Route path="/admin/agents" element={
-                <ProtectedRoute allowedRoles={['admin']}><AgentManagement /></ProtectedRoute>
-              } />
-              <Route path="/admin/deliveries" element={
-                <ProtectedRoute allowedRoles={['admin']}><ScheduledDeliveries /></ProtectedRoute>
-              } />
-              <Route path="/admin/assign" element={
-                <ProtectedRoute allowedRoles={['admin']}><AssignDeliveries /></ProtectedRoute>
-              } />
-              <Route path="/admin/reports" element={
-                <ProtectedRoute allowedRoles={['admin']}><ReportsAnalysis /></ProtectedRoute>
-              } />
+                  {/* Admin Routes */}
+                  <Route path="/admin" element={
+                    <ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>
+                  } />
+                  <Route path="/admin/agents" element={
+                    <ProtectedRoute allowedRoles={['admin']}><AgentManagement /></ProtectedRoute>
+                  } />
+                  <Route path="/admin/deliveries" element={
+                    <ProtectedRoute allowedRoles={['admin']}><ScheduledDeliveries /></ProtectedRoute>
+                  } />
+                  <Route path="/admin/assign" element={
+                    <ProtectedRoute allowedRoles={['admin']}><AssignDeliveries /></ProtectedRoute>
+                  } />
+                  <Route path="/admin/reports" element={
+                    <ProtectedRoute allowedRoles={['admin']}><ReportsAnalysis /></ProtectedRoute>
+                  } />
 
-              {/* Agent Routes */}
-              <Route path="/agent" element={
-                <ProtectedRoute allowedRoles={['agent']}><AgentDashboard /></ProtectedRoute>
-              } />
-              <Route path="/agent/optimize" element={
-                <ProtectedRoute allowedRoles={['agent']}><AgentRouteOptimization /></ProtectedRoute>
-              } />
-              <Route path="/agent/map" element={
-                <ProtectedRoute allowedRoles={['agent']}><MapVisualization /></ProtectedRoute>
-              } />
-              <Route path="/agent/route" element={
-                <ProtectedRoute allowedRoles={['agent']}><AssignedRoute /></ProtectedRoute>
-              } />
-              <Route path="/agent/status" element={
-                <ProtectedRoute allowedRoles={['agent']}><DeliveryStatus /></ProtectedRoute>
-              } />
+                  {/* Agent Routes */}
+                  <Route path="/agent" element={
+                    <ProtectedRoute allowedRoles={['agent']}><AgentDashboard /></ProtectedRoute>
+                  } />
+                  <Route path="/agent/optimize" element={
+                    <ProtectedRoute allowedRoles={['agent']}><AgentRouteOptimization /></ProtectedRoute>
+                  } />
+                  <Route path="/agent/map" element={
+                    <ProtectedRoute allowedRoles={['agent']}><MapVisualization /></ProtectedRoute>
+                  } />
+                  <Route path="/agent/route" element={
+                    <ProtectedRoute allowedRoles={['agent']}><AssignedRoute /></ProtectedRoute>
+                  } />
+                  <Route path="/agent/status" element={
+                    <ProtectedRoute allowedRoles={['agent']}><DeliveryStatus /></ProtectedRoute>
+                  } />
 
-              {/* Catch-all */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </DeliveryProvider>
+                  {/* Catch-all */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </TooltipProvider>
+          </RouteProvider>
+        </DeliveryProvider>
+      </AgentProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

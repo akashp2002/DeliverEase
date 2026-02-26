@@ -3,6 +3,7 @@ import { DeliveryMap } from '@/components/DeliveryMap';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDelivery } from '@/contexts/DeliveryContext';
+import { useRoute } from '@/contexts/RouteContext';
 import { warehouseLocation } from '@/data/mockData';
 import { Navigation, MapPin, Clock, Phone, User, FileText, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +12,8 @@ import { toast } from 'sonner';
 
 export default function AssignedRoute() {
   const { user } = useAuth();
-  const { getAgentDeliveries, optimizedRoutes, updateDeliveryStatus } = useDelivery();
+  const { getAgentDeliveries, updateDeliveryStatus } = useDelivery();
+  const { optimizedRoutes } = useRoute();
   const agentId = user?.agentId || 'agent-001';
 
   const agentDeliveries = getAgentDeliveries(agentId).filter(d => d.status !== 'delivered');
@@ -67,27 +69,12 @@ export default function AssignedRoute() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-                     <DeliveryMap
-                      waypoints={waypoints}
-                      showRoute={!routeData}
-                      originalRoute={!routeData ? undefined : [
-                      { lat: warehouseLocation.lat, lng: warehouseLocation.lng },
-                      ...agentDeliveries.map(d => ({
-      lat: d.location.lat,
-      lng: d.location.lng
-    })),
-    { lat: warehouseLocation.lat, lng: warehouseLocation.lng }
-  ]}
-  optimizedRoute={!routeData ? undefined : [
-    { lat: warehouseLocation.lat, lng: warehouseLocation.lng },
-    ...routeData.sequence.map(d => ({
-      lat: d.location.lat,
-      lng: d.location.lng
-    })),
-    { lat: warehouseLocation.lat, lng: warehouseLocation.lng }
-  ]}
-  height="500px"
-/>
+              <DeliveryMap
+                waypoints={waypoints}
+                showRoute={true}
+                showOptimizedRoute={!!routeData}
+                height="500px"
+              />
               <div className="flex items-center gap-6 mt-4 text-sm">
                 <div className="flex items-center gap-2">
                   <div className="h-3 w-3 rounded-full bg-primary" />
@@ -107,7 +94,7 @@ export default function AssignedRoute() {
 
           <div className="space-y-6">
             {currentDelivery && (
-              <Card className="ring-2 ring-accent">   
+              <Card className="ring-2 ring-accent">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">Current Delivery</CardTitle>
@@ -162,12 +149,10 @@ export default function AssignedRoute() {
                   {orderedDeliveries.map((delivery, index) => (
                     <div key={delivery.id} className="relative">
                       <div className="absolute left-4 top-10 bottom-0 w-px bg-border" />
-                      <div className={`flex items-center gap-3 p-2 rounded-lg ${
-                        delivery.status === 'in-transit' ? 'bg-accent/10 ring-1 ring-accent' : 'hover:bg-muted/50'
-                      }`}>
-                        <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium ${
-                          delivery.status === 'in-transit' ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground'
-                        }`}>{index + 1}</div>
+                      <div className={`flex items-center gap-3 p-2 rounded-lg ${delivery.status === 'in-transit' ? 'bg-accent/10 ring-1 ring-accent' : 'hover:bg-muted/50'
+                        }`}>
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium ${delivery.status === 'in-transit' ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground'
+                          }`}>{index + 1}</div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{delivery.location.customerName}</p>
                           <p className="text-xs text-muted-foreground">{delivery.scheduledTime}</p>

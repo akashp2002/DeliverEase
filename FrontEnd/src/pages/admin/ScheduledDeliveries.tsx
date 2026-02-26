@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useDelivery } from '@/contexts/DeliveryContext';
+import { useAgent } from '@/contexts/AgentContext';
 import type { ScheduledDelivery, DeliveryAgent } from '../../data/mockData';
 import { DeliveryMap } from '@/components/DeliveryMap';
 import { Plus, Search, Filter, Calendar, Package, Loader2, MapPin, RefreshCw } from 'lucide-react';
@@ -89,7 +90,8 @@ const indianLocations: Record<string, Record<string, { lat: number; lng: number 
 const states = Object.keys(indianLocations).sort();
 
 export default function ScheduledDeliveries() {
-  const { deliveries, agents, addDelivery, fetchDeliveries, fetchAgents, isLoadingDeliveries } = useDelivery();
+  const { agents, fetchAgents } = useAgent();
+  const { deliveries, addDelivery, fetchDeliveries, isLoadingDeliveries } = useDelivery();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterArea, setFilterArea] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -129,12 +131,12 @@ export default function ScheduledDeliveries() {
     console.log('📂 Opening delivery details for:', delivery.id);
     console.log('📋 Current agents count:', agents.length);
     console.log('🏷️ Delivery agentId:', delivery.agentId);
-    
+
     if (agents.length === 0) {
       console.log('⏳ Agents not loaded, fetching now...');
       await fetchAgents();
     }
-    
+
     console.log('✅ Agents ready, setting delivery details');
     setSelectedDeliveryForDetails(delivery);
     setDetailsDialogOpen(true);
@@ -148,19 +150,19 @@ export default function ScheduledDeliveries() {
     console.log('🔍 LOOKING FOR AGENT WITH ID:', agentId);
     console.log('📋 AGENTS ARRAY:', agents);
     console.log('📋 AGENTS COUNT:', agents.length);
-    
+
     // Try exact match
     let found = agents.find(a => {
       const matches = String(a.id) === String(agentId);
       console.log(`  Comparing agent "${a.id}" (${typeof a.id}) === agentId "${agentId}" (${typeof agentId}) = ${matches}`);
       return matches;
     });
-    
+
     if (found) {
       console.log('✅ FOUND AGENT:', found);
       return found;
     }
-    
+
     console.log('❌ AGENT NOT FOUND');
     return null;
   };
@@ -171,13 +173,13 @@ export default function ScheduledDeliveries() {
       toast.error('Please select an agent');
       return;
     }
-    
+
     try {
       // Call API to update delivery with agent
       const response = await api.put(`/deliveries/${selectedDeliveryId}/assign`, {
         agentId: selectedAgentId,
       });
-      
+
       if (response.data.success) {
         toast.success(`Delivery assigned to ${agents.find(a => a.id === selectedAgentId)?.name}`);
         await fetchDeliveries();
@@ -240,7 +242,7 @@ export default function ScheduledDeliveries() {
     try {
       const fullAddress = `${newDelivery.streetAddress}, ${newDelivery.area}, ${newDelivery.city}, ${newDelivery.state}, ${newDelivery.country}`;
       const result = await geocodeAddress(fullAddress);
-      
+
       if (result && isCoordinateInIndia(result.lat, result.lng)) {
         setPreviewCoords({ lat: result.lat, lng: result.lng });
       } else if (result) {
@@ -298,7 +300,7 @@ export default function ScheduledDeliveries() {
       } else {
         // Fallback to database coordinates
         const dbCoords = indianLocations[newDelivery.state]?.[newDelivery.area];
-        
+
         if (!dbCoords) {
           toast.error('Location coordinates could not be determined. Please verify your location.');
           setIsGeocodingLoading(false);
@@ -336,7 +338,7 @@ export default function ScheduledDeliveries() {
         priority: newDelivery.priority,
         packageWeight: Math.round(Math.random() * 5 * 10) / 10,
       });
-      
+
       console.log('✅ Delivery sent successfully to API');
 
       setNewDelivery({
@@ -346,7 +348,7 @@ export default function ScheduledDeliveries() {
       });
       setPreviewCoords(null);
       setIsAddDialogOpen(false);
-      
+
       // Refresh deliveries list after short delay to ensure backend is updated
       setTimeout(() => fetchDeliveries(), 500);
     } catch (error: any) {
@@ -390,229 +392,229 @@ export default function ScheduledDeliveries() {
                   Fill in the delivery details. Coordinates will be auto-generated based on the selected area.
                 </DialogDescription>
               </DialogHeader>
-            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Customer Name *</Label>
+                    <Input
+                      placeholder="Full name"
+                      value={newDelivery.customerName}
+                      onChange={(e) => setNewDelivery({ ...newDelivery, customerName: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone Number</Label>
+                    <Input
+                      placeholder="+91 98765 43210"
+                      value={newDelivery.phone}
+                      onChange={(e) => setNewDelivery({ ...newDelivery, phone: e.target.value })}
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label>Customer Name *</Label>
+                  <Label>Street Address *</Label>
                   <Input
-                    placeholder="Full name"
-                    value={newDelivery.customerName}
-                    onChange={(e) => setNewDelivery({ ...newDelivery, customerName: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Phone Number</Label>
-                  <Input
-                    placeholder="+91 98765 43210"
-                    value={newDelivery.phone}
-                    onChange={(e) => setNewDelivery({ ...newDelivery, phone: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Street Address *</Label>
-                <Input
-                  placeholder="e.g., 101 Connaught Place, Block A"
-                  value={newDelivery.streetAddress}
-                  onChange={(e) => {
-                    setNewDelivery({ ...newDelivery, streetAddress: e.target.value });
-                  }}
-                  onBlur={handleAddressChange}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Landmark / Building Details (Optional)</Label>
-                <Input
-                  placeholder="e.g., Office building, 3rd floor"
-                  value={newDelivery.landmark}
-                  onChange={(e) => setNewDelivery({ ...newDelivery, landmark: e.target.value })}
-                  onBlur={handleAddressChange}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Country *</Label>
-                  <Select
-                    value={newDelivery.country}
-                    onValueChange={(value) => setNewDelivery({ ...newDelivery, country: value })}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="India">India</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>State *</Label>
-                  <Select
-                    value={newDelivery.state}
-                    onValueChange={(value) => {
-                      setNewDelivery({ ...newDelivery, state: value, area: getAreasForState(value)[0] || '' });
-                      handleAddressChange();
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {states.map(state => (
-                        <SelectItem key={state} value={state}>{state}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Area / City *</Label>
-                  <Select
-                    value={newDelivery.area}
-                    onValueChange={(value) => {
-                      setNewDelivery({ ...newDelivery, area: value });
-                      handleAddressChange();
-                    }}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {currentAreas.map(area => (
-                        <SelectItem key={area} value={area}>{area}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>City</Label>
-                  <Input
-                    placeholder="e.g., New Delhi, Bangalore"
-                    value={newDelivery.city}
+                    placeholder="e.g., 101 Connaught Place, Block A"
+                    value={newDelivery.streetAddress}
                     onChange={(e) => {
-                      setNewDelivery({ ...newDelivery, city: e.target.value });
+                      setNewDelivery({ ...newDelivery, streetAddress: e.target.value });
                     }}
                     onBlur={handleAddressChange}
                   />
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label>Postal Code</Label>
-                <Input
-                  placeholder="110001"
-                  value={newDelivery.postalCode}
-                  onChange={(e) => setNewDelivery({ ...newDelivery, postalCode: e.target.value })}
-                />
-              </div>
-
-              {/* Map Preview */}
-              {previewCoords && (
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-blue-500" />
-                    Location Preview
-                    {isGeocodingLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                  </Label>
-                  <div className="border border-blue-200 rounded-lg overflow-hidden bg-blue-50 dark:bg-blue-950">
-                    <DeliveryMap
-                      waypoints={[{
-                        lat: previewCoords.lat,
-                        lng: previewCoords.lng,
-                        label: newDelivery.customerName || 'Delivery Location'
-                      }]}
-                      height="200px"
+                  <Label>Landmark / Building Details (Optional)</Label>
+                  <Input
+                    placeholder="e.g., Office building, 3rd floor"
+                    value={newDelivery.landmark}
+                    onChange={(e) => setNewDelivery({ ...newDelivery, landmark: e.target.value })}
+                    onBlur={handleAddressChange}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Country *</Label>
+                    <Select
+                      value={newDelivery.country}
+                      onValueChange={(value) => setNewDelivery({ ...newDelivery, country: value })}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="India">India</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>State *</Label>
+                    <Select
+                      value={newDelivery.state}
+                      onValueChange={(value) => {
+                        setNewDelivery({ ...newDelivery, state: value, area: getAreasForState(value)[0] || '' });
+                        handleAddressChange();
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {states.map(state => (
+                          <SelectItem key={state} value={state}>{state}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Area / City *</Label>
+                    <Select
+                      value={newDelivery.area}
+                      onValueChange={(value) => {
+                        setNewDelivery({ ...newDelivery, area: value });
+                        handleAddressChange();
+                      }}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {currentAreas.map(area => (
+                          <SelectItem key={area} value={area}>{area}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>City</Label>
+                    <Input
+                      placeholder="e.g., New Delhi, Bangalore"
+                      value={newDelivery.city}
+                      onChange={(e) => {
+                        setNewDelivery({ ...newDelivery, city: e.target.value });
+                      }}
+                      onBlur={handleAddressChange}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    📍 {previewCoords.lat.toFixed(4)}°, {previewCoords.lng.toFixed(4)}°
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Postal Code</Label>
+                  <Input
+                    placeholder="110001"
+                    value={newDelivery.postalCode}
+                    onChange={(e) => setNewDelivery({ ...newDelivery, postalCode: e.target.value })}
+                  />
+                </div>
+
+                {/* Map Preview */}
+                {previewCoords && (
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-blue-500" />
+                      Location Preview
+                      {isGeocodingLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                    </Label>
+                    <div className="border border-blue-200 rounded-lg overflow-hidden bg-blue-50 dark:bg-blue-950">
+                      <DeliveryMap
+                        waypoints={[{
+                          lat: previewCoords.lat,
+                          lng: previewCoords.lng,
+                          label: newDelivery.customerName || 'Delivery Location'
+                        }]}
+                        height="200px"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      📍 {previewCoords.lat.toFixed(4)}°, {previewCoords.lng.toFixed(4)}°
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Scheduled Date *</Label>
+                    <Input
+                      type="date"
+                      value={newDelivery.scheduledDate}
+                      onChange={(e) => setNewDelivery({ ...newDelivery, scheduledDate: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Delivery Time Slot</Label>
+                    <Input
+                      type="time"
+                      value={newDelivery.scheduledTime}
+                      onChange={(e) => setNewDelivery({ ...newDelivery, scheduledTime: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select
+                    value={newDelivery.priority}
+                    onValueChange={(value) => setNewDelivery({ ...newDelivery, priority: value as 'low' | 'medium' | 'high' })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Assign Delivery Agent *</Label>
+                  <Select
+                    value={newDelivery.agentId}
+                    onValueChange={(value) => setNewDelivery({ ...newDelivery, agentId: value === 'none' ? '' : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select agent (required)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {agents.length === 0 ? (
+                        <SelectItem value="loading" disabled>Loading agents...</SelectItem>
+                      ) : (
+                        agents.filter(a => a.status !== 'off-duty').map(agent => (
+                          <SelectItem key={agent.id} value={agent.id}>
+                            {agent.name} - {agent.status === 'available' ? '✓ Available' : 'On Delivery'} ({agent.assignedDeliveries} assigned)
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {agents.filter(a => a.status !== 'off-duty').length === 0 && (
+                    <p className="text-xs text-red-600 font-medium">⚠️ No available agents. Cannot create delivery.</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Notes (Optional)</Label>
+                  <Textarea
+                    placeholder="Any special instructions..."
+                    value={newDelivery.notes}
+                    onChange={(e) => setNewDelivery({ ...newDelivery, notes: e.target.value })}
+                    rows={2}
+                  />
+                </div>
+
+                <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    🌍 <strong>Real-world Geocoding:</strong> Your address is automatically converted to precise GPS coordinates using the OpenStreetMap API. The map preview updates as you enter details, and coordinates are validated to be within India. Falls back to our location database if geocoding is unavailable.
                   </p>
                 </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Scheduled Date *</Label>
-                  <Input
-                    type="date"
-                    value={newDelivery.scheduledDate}
-                    onChange={(e) => setNewDelivery({ ...newDelivery, scheduledDate: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Delivery Time Slot</Label>
-                  <Input
-                    type="time"
-                    value={newDelivery.scheduledTime}
-                    onChange={(e) => setNewDelivery({ ...newDelivery, scheduledTime: e.target.value })}
-                  />
-                </div>
               </div>
-
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                <Select
-                  value={newDelivery.priority}
-                  onValueChange={(value) => setNewDelivery({ ...newDelivery, priority: value as 'low' | 'medium' | 'high' })}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Assign Delivery Agent *</Label>
-                <Select
-                  value={newDelivery.agentId}
-                  onValueChange={(value) => setNewDelivery({ ...newDelivery, agentId: value === 'none' ? '' : value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select agent (required)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {agents.length === 0 ? (
-                      <SelectItem value="loading" disabled>Loading agents...</SelectItem>
-                    ) : (
-                      agents.filter(a => a.status !== 'off-duty').map(agent => (
-                        <SelectItem key={agent.id} value={agent.id}>
-                          {agent.name} - {agent.status === 'available' ? '✓ Available' : 'On Delivery'} ({agent.assignedDeliveries} assigned)
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                {agents.filter(a => a.status !== 'off-duty').length === 0 && (
-                  <p className="text-xs text-red-600 font-medium">⚠️ No available agents. Cannot create delivery.</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Notes (Optional)</Label>
-                <Textarea
-                  placeholder="Any special instructions..."
-                  value={newDelivery.notes}
-                  onChange={(e) => setNewDelivery({ ...newDelivery, notes: e.target.value })}
-                  rows={2}
-                />
-              </div>
-
-              <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-                <p className="text-xs text-blue-700 dark:text-blue-300">
-                  🌍 <strong>Real-world Geocoding:</strong> Your address is automatically converted to precise GPS coordinates using the OpenStreetMap API. The map preview updates as you enter details, and coordinates are validated to be within India. Falls back to our location database if geocoding is unavailable.
-                </p>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isGeocodingLoading}>Cancel</Button>
-              <Button onClick={handleAddDelivery} disabled={isGeocodingLoading} className="gap-2">
-                {isGeocodingLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                {isGeocodingLoading ? 'Creating...' : 'Create Delivery'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={isGeocodingLoading}>Cancel</Button>
+                <Button onClick={handleAddDelivery} disabled={isGeocodingLoading} className="gap-2">
+                  {isGeocodingLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isGeocodingLoading ? 'Creating...' : 'Create Delivery'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -622,8 +624,8 @@ export default function ScheduledDeliveries() {
           <DialogHeader>
             <DialogTitle>{assignmentMode === 'edit' ? 'Change Delivery Agent' : 'Assign Delivery Agent'}</DialogTitle>
             <DialogDescription>
-              {assignmentMode === 'edit' 
-                ? 'Select a different agent to reassign this delivery to.' 
+              {assignmentMode === 'edit'
+                ? 'Select a different agent to reassign this delivery to.'
                 : 'Select an available agent to assign this delivery to.'}
             </DialogDescription>
           </DialogHeader>
@@ -687,13 +689,12 @@ export default function ScheduledDeliveries() {
                   <div>
                     <p className="text-sm text-muted-foreground">Priority</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                        selectedDeliveryForDetails.priority === 'high'
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${selectedDeliveryForDetails.priority === 'high'
                           ? 'bg-destructive/15 text-destructive'
                           : selectedDeliveryForDetails.priority === 'medium'
-                          ? 'bg-warning/15 text-warning'
-                          : 'bg-muted text-muted-foreground'
-                      }`}>
+                            ? 'bg-warning/15 text-warning'
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
                         {selectedDeliveryForDetails.priority.toUpperCase()}
                       </span>
                     </div>
@@ -883,75 +884,74 @@ export default function ScheduledDeliveries() {
                     <th>Status</th>
                   </tr>
                 </thead>
-               <tbody>
-  {filteredDeliveries.map(delivery => {
-    const agent = agents.find(a => String(a.id) === String(delivery.agentId));
+                <tbody>
+                  {filteredDeliveries.map(delivery => {
+                    const agent = agents.find(a => String(a.id) === String(delivery.agentId));
 
-    return (
-      <tr
-        key={delivery.id}
-        onClick={() => openDetailsDialog(delivery)}
-        className="cursor-pointer hover:bg-accent/50 transition-colors"
-      >
-        <td className="font-medium">{delivery.orderId}</td>
-        <td>{delivery.location.customerName}</td>
-        <td
-          className="max-w-[180px] truncate"
-          title={`${delivery.location.streetAddress}, ${delivery.location.area}`}
-        >
-          {delivery.location.streetAddress}, {delivery.location.area}
-        </td>
-        <td className="text-xs text-muted-foreground">
-          {delivery.location.lat.toFixed(4)}, {delivery.location.lng.toFixed(4)}
-        </td>
-        <td>{delivery.area}</td>
+                    return (
+                      <tr
+                        key={delivery.id}
+                        onClick={() => openDetailsDialog(delivery)}
+                        className="cursor-pointer hover:bg-accent/50 transition-colors"
+                      >
+                        <td className="font-medium">{delivery.orderId}</td>
+                        <td>{delivery.location.customerName}</td>
+                        <td
+                          className="max-w-[180px] truncate"
+                          title={`${delivery.location.streetAddress}, ${delivery.location.area}`}
+                        >
+                          {delivery.location.streetAddress}, {delivery.location.area}
+                        </td>
+                        <td className="text-xs text-muted-foreground">
+                          {delivery.location.lat.toFixed(4)}, {delivery.location.lng.toFixed(4)}
+                        </td>
+                        <td>{delivery.area}</td>
 
-        <td>
-          <div className="flex items-center gap-1 text-sm">
-            <Calendar className="h-3 w-3 text-muted-foreground" />
-            {delivery.scheduledDate} {delivery.scheduledTime}
-          </div>
-        </td>
+                        <td>
+                          <div className="flex items-center gap-1 text-sm">
+                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            {delivery.scheduledDate} {delivery.scheduledTime}
+                          </div>
+                        </td>
 
-        <td>
-          {agent ? (
-            <span className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-semibold">
-                {agent.name.charAt(0).toUpperCase()}
-              </div>
-              <span className="text-sm font-medium">{agent.name}</span>
-            </span>
-          ) : (
-            <button
-              className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-amber-50 hover:bg-amber-100 dark:bg-amber-950 dark:hover:bg-amber-900 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-medium transition-colors"
-              onClick={() => openAssignDialog(delivery.id, 'assign')}
-            >
-              ➕ Assign Agent
-            </button>
-          )}
-        </td>
+                        <td>
+                          {agent ? (
+                            <span className="flex items-center gap-2">
+                              <div className="h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-semibold">
+                                {agent.name.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="text-sm font-medium">{agent.name}</span>
+                            </span>
+                          ) : (
+                            <button
+                              className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-amber-50 hover:bg-amber-100 dark:bg-amber-950 dark:hover:bg-amber-900 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-medium transition-colors"
+                              onClick={() => openAssignDialog(delivery.id, 'assign')}
+                            >
+                              ➕ Assign Agent
+                            </button>
+                          )}
+                        </td>
 
-        <td>
-          <span
-            className={`status-badge ${
-              delivery.priority === 'high'
-                ? 'bg-destructive/15 text-destructive'
-                : delivery.priority === 'medium'
-                ? 'bg-warning/15 text-warning'
-                : 'bg-muted text-muted-foreground'
-            }`}
-          >
-            {delivery.priority}
-          </span>
-        </td>
+                        <td>
+                          <span
+                            className={`status-badge ${delivery.priority === 'high'
+                                ? 'bg-destructive/15 text-destructive'
+                                : delivery.priority === 'medium'
+                                  ? 'bg-warning/15 text-warning'
+                                  : 'bg-muted text-muted-foreground'
+                              }`}
+                          >
+                            {delivery.priority}
+                          </span>
+                        </td>
 
-        <td>
-          <StatusBadge status={delivery.status} />
-        </td>
-      </tr>
-    );
-  })}
-</tbody>
+                        <td>
+                          <StatusBadge status={delivery.status} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
 
               </table>
             </div>

@@ -4,6 +4,7 @@ import { StatCard } from '@/components/StatCard';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDelivery } from '@/contexts/DeliveryContext';
+import { useRoute } from '@/contexts/RouteContext';
 import { formatFullAddress } from '@/lib/utils';
 import { Package, CheckCircle, Clock, MapPin, TrendingUp, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +12,8 @@ import { Button } from '@/components/ui/button';
 
 export default function AgentDashboard() {
   const { user } = useAuth();
-  const { getAgentDeliveries, optimizedRoutes } = useDelivery();
+  const { getAgentDeliveries } = useDelivery();
+  const { optimizedRoutes } = useRoute();
   const navigate = useNavigate();
   const agentId = user?.agentId;
 

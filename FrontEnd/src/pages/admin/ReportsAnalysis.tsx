@@ -1,5 +1,6 @@
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { useDelivery } from '@/contexts/DeliveryContext';
+import { useAgent } from '@/contexts/AgentContext';
 import { BarChart3, TrendingUp, Clock, MapPin, Package, Users, ArrowDown } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -8,7 +9,8 @@ import {
 } from 'recharts';
 
 export default function ReportsAnalysis() {
-  const { agents, deliveries } = useDelivery();
+  const { agents } = useAgent();
+  const { deliveries } = useDelivery();
 
   const completedDeliveries = deliveries.filter(d => d.status === 'delivered').length;
   const pendingDeliveries = deliveries.filter(d => d.status === 'pending').length;

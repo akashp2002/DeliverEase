@@ -2,6 +2,7 @@ import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { DeliveryMap } from '@/components/DeliveryMap';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDelivery } from '@/contexts/DeliveryContext';
+import { useRoute } from '@/contexts/RouteContext';
 import { warehouseLocation } from '@/data/mockData';
 import { Map, MapPin, Navigation } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +11,8 @@ import { useNavigate } from 'react-router-dom';
 
 export default function MapVisualization() {
   const { user } = useAuth();
-  const { getAgentDeliveries, optimizedRoutes } = useDelivery();
+  const { getAgentDeliveries } = useDelivery();
+  const { optimizedRoutes } = useRoute();
   const navigate = useNavigate();
   const agentId = user?.agentId || 'agent-001';
 
@@ -73,26 +75,11 @@ export default function MapVisualization() {
             </CardHeader>
             <CardContent>
               <DeliveryMap
-  waypoints={waypoints}
-  showRoute={!routeData}
-  originalRoute={!routeData ? undefined : [
-    { lat: warehouseLocation.lat, lng: warehouseLocation.lng },
-    ...agentDeliveries.map(d => ({
-      lat: d.location.lat,
-      lng: d.location.lng
-    })),
-    { lat: warehouseLocation.lat, lng: warehouseLocation.lng }
-  ]}
-  optimizedRoute={!routeData ? undefined : [
-    { lat: warehouseLocation.lat, lng: warehouseLocation.lng },
-    ...routeData.sequence.map(d => ({
-      lat: d.location.lat,
-      lng: d.location.lng
-    })),
-    { lat: warehouseLocation.lat, lng: warehouseLocation.lng }
-  ]}
-  height="500px"
-/>
+                waypoints={waypoints}
+                showRoute={true}
+                showOptimizedRoute={!!routeData}
+                height="500px"
+              />
 
               <div className="flex items-center gap-6 mt-4 text-sm">
                 <div className="flex items-center gap-2">
@@ -143,11 +130,10 @@ export default function MapVisualization() {
                         <td className="text-xs text-muted-foreground">{d.location.lng.toFixed(4)}</td>
                         <td>{d.scheduledTime}</td>
                         <td>
-                          <span className={`status-badge ${
-                            d.status === 'in-transit' ? 'bg-accent/15 text-accent'
+                          <span className={`status-badge ${d.status === 'in-transit' ? 'bg-accent/15 text-accent'
                             : d.status === 'pending' ? 'bg-warning/15 text-warning'
-                            : 'bg-muted text-muted-foreground'
-                          }`}>{d.status}</span>
+                              : 'bg-muted text-muted-foreground'
+                            }`}>{d.status}</span>
                         </td>
                       </tr>
                     ))}

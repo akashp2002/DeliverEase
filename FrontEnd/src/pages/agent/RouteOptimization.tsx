@@ -3,6 +3,7 @@ import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { DeliveryMap } from '@/components/DeliveryMap';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDelivery } from '@/contexts/DeliveryContext';
+import { useRoute } from '@/contexts/RouteContext';
 import { warehouseLocation } from '@/data/mockData';
 import { Zap, Route, TrendingDown, MapPin, ArrowRight, Clock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +12,8 @@ import { toast } from 'sonner';
 
 export default function AgentRouteOptimization() {
   const { user } = useAuth();
-  const { getAgentDeliveries, optimizeRoute, optimizedRoutes } = useDelivery();
+  const { getAgentDeliveries } = useDelivery();
+  const { optimizeRoute, optimizedRoutes } = useRoute();
   const agentId = user?.agentId || 'agent-001';
 
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -44,7 +46,7 @@ export default function AgentRouteOptimization() {
     setIsOptimizing(true);
     // Simulate computation delay
     await new Promise(resolve => setTimeout(resolve, 1500));
-    const result = await  optimizeRoute(agentId);
+    const result = await optimizeRoute(agentId);
     setIsOptimizing(false);
     setShowOptimized(true);
 
@@ -168,9 +170,8 @@ export default function AgentRouteOptimization() {
             <CardContent>
               <DeliveryMap
                 waypoints={showOptimized ? optimizedWaypoints : originalWaypoints}
-                showRoute={!showOptimized}
-                originalRoute={showOptimized ? originalWaypoints : undefined}
-                optimizedRoute={showOptimized ? optimizedWaypoints : undefined}
+                showRoute={true}
+                showOptimizedRoute={showOptimized}
                 height="450px"
               />
               {showOptimized && (

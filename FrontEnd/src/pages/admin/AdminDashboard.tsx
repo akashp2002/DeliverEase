@@ -3,12 +3,14 @@ import { StatCard } from '@/components/StatCard';
 import { StatusBadge } from '@/components/StatusBadge';
 import { DeliveryMap } from '@/components/DeliveryMap';
 import { useDelivery } from '@/contexts/DeliveryContext';
+import { useAgent } from '@/contexts/AgentContext';
 import { warehouseLocation } from '@/data/mockData';
 import { Users, Package, Clock, MapPin } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function AdminDashboard() {
-  const { agents, deliveries } = useDelivery();
+  const { agents } = useAgent();
+  const { deliveries } = useDelivery();
 
   const availableAgents = agents.filter(a => a.status === 'available').length;
   const pendingDeliveries = deliveries.filter(d => d.status === 'pending').length;
@@ -113,11 +115,10 @@ export default function AdminDashboard() {
                     <td className="max-w-[200px] truncate">{delivery.location.streetAddress}, {delivery.location.area}</td>
                     <td>{delivery.scheduledTime}</td>
                     <td>
-                      <span className={`status-badge ${
-                        delivery.priority === 'high' ? 'bg-destructive/15 text-destructive'
-                        : delivery.priority === 'medium' ? 'bg-warning/15 text-warning'
-                        : 'bg-muted text-muted-foreground'
-                      }`}>{delivery.priority}</span>
+                      <span className={`status-badge ${delivery.priority === 'high' ? 'bg-destructive/15 text-destructive'
+                          : delivery.priority === 'medium' ? 'bg-warning/15 text-warning'
+                            : 'bg-muted text-muted-foreground'
+                        }`}>{delivery.priority}</span>
                     </td>
                     <td><StatusBadge status={delivery.status} /></td>
                   </tr>

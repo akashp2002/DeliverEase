@@ -1,12 +1,14 @@
 import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useDelivery } from '@/contexts/DeliveryContext';
+import { useAgent } from '@/contexts/AgentContext';
 import { formatFullAddress } from '@/lib/utils';
 import { Users, Package, MapPin, Clock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function AssignDeliveries() {
-  const { agents, deliveries } = useDelivery();
+  const { agents } = useAgent();
+  const { deliveries } = useDelivery();
 
   // Group deliveries by agent
   const agentDeliveryMap = agents.map(agent => ({
@@ -120,13 +122,12 @@ export default function AssignDeliveries() {
                             </span>
                           </td>
                           <td>
-                            <span className={`status-badge ${
-                              del.priority === 'high'
+                            <span className={`status-badge ${del.priority === 'high'
                                 ? 'bg-destructive/15 text-destructive'
                                 : del.priority === 'medium'
-                                ? 'bg-warning/15 text-warning'
-                                : 'bg-muted text-muted-foreground'
-                            }`}>
+                                  ? 'bg-warning/15 text-warning'
+                                  : 'bg-muted text-muted-foreground'
+                              }`}>
                               {del.priority}
                             </span>
                           </td>

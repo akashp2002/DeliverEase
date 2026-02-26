@@ -2,6 +2,7 @@ import { DashboardLayout } from '@/components/layouts/DashboardLayout';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDelivery } from '@/contexts/DeliveryContext';
+import { useRoute } from '@/contexts/RouteContext';
 import { ScheduledDelivery } from '@/data/mockData';
 import { CheckCircle, Clock, Package, MapPin, Phone, X } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +12,8 @@ import { toast } from 'sonner';
 
 export default function DeliveryStatus() {
   const { user } = useAuth();
-  const { getAgentDeliveries, updateDeliveryStatus, optimizedRoutes } = useDelivery();
+  const { getAgentDeliveries, updateDeliveryStatus } = useDelivery();
+  const { optimizedRoutes } = useRoute();
   const agentId = user?.agentId || 'agent-001';
   const [filter, setFilter] = useState<string>('all');
 
