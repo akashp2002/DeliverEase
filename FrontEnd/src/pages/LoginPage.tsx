@@ -176,22 +176,6 @@ export default function LoginPage() {
                   {isLoading ? 'Signing in...' : 'Sign In'}
                 </Button>
               </form>
-
-              <div className="mt-6 pt-6 border-t border-border">
-                <p className="text-sm text-muted-foreground mb-3">Demo credentials:</p>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={fillDemoCredentials}
-                >
-                  Fill Demo Credentials
-                </Button>
-                <p className="text-xs text-muted-foreground mt-2 text-center">
-                  {loginType === 'admin' 
-                    ? 'admin@delivery.com / admin123'
-                    : 'agent@delivery.com / agent123'}
-                </p>
-              </div>
             </CardContent>
           </Card>
         </div>

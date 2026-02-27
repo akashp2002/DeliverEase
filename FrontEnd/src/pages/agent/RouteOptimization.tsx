@@ -64,7 +64,7 @@ export default function AgentRouteOptimization() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Route Optimization</h1>
           <p className="text-muted-foreground mt-1">
-            Optimize delivery sequence using Nearest-Neighbor heuristic & Dijkstra's shortest path
+            Optimize delivery sequence using Nearest-Neighbor heuristic 
           </p>
         </div>
         <Button onClick={handleOptimize} disabled={isOptimizing || agentDeliveries.length === 0} className="gap-2">
@@ -83,18 +83,6 @@ export default function AgentRouteOptimization() {
         </Card>
       ) : (
         <>
-          {/* Algorithm Info */}
-          <Card className="mb-6 bg-muted/30">
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground">
-                <strong>Algorithm:</strong> The system uses <span className="text-foreground font-medium">Nearest-Neighbor heuristic</span> to
-                determine the optimal delivery order by always visiting the closest unvisited location next.
-                Distance calculations use the <span className="text-foreground font-medium">Haversine formula</span> (geographic shortest path / Dijkstra's approach)
-                to compute real-world distances between delivery points.
-              </p>
-            </CardContent>
-          </Card>
-
           {/* Stats Comparison */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <Card className={showOptimized ? 'opacity-60' : ''}>
