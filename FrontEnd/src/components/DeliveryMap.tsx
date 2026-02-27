@@ -14,7 +14,7 @@ interface Waypoint {
   lat: number;
   lng: number;
   label?: string;
-  type?: 'warehouse' | 'delivery' | 'current';
+  type?: 'warehouse' | 'delivery' | 'current' | 'agent';
 }
 
 interface DeliveryMapProps {
@@ -30,11 +30,12 @@ interface DeliveryMapProps {
 }
 
 // Custom marker icons
-const createCustomIcon = (type: 'warehouse' | 'delivery' | 'current' = 'delivery') => {
+const createCustomIcon = (type: 'warehouse' | 'delivery' | 'current' | 'agent' = 'delivery') => {
   const colors = {
     warehouse: '#1a365d',
     delivery: '#0d9488',
     current: '#f59e0b',
+    agent: '#3b82f6',
   };
 
   return L.divIcon({
@@ -58,7 +59,7 @@ const createCustomIcon = (type: 'warehouse' | 'delivery' | 'current' = 'delivery
           font-size: 12px;
           font-weight: bold;
         ">
-          ${type === 'warehouse' ? '🏢' : type === 'current' ? '📍' : '📦'}
+          ${type === 'warehouse' ? '🏢' : type === 'agent' ? '🚚' : type === 'current' ? '📍' : '📦'}
         </div>
       </div>
     `,
@@ -85,35 +86,43 @@ export function DeliveryMap({
   useEffect(() => {
     if (!mapRef.current) return;
 
-    // Clean up existing map
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove();
+    // 1. Initialize map only ONCE
+    if (!mapInstanceRef.current) {
+      const mapCenter = center || (waypoints.length > 0
+        ? {
+          lat: waypoints.reduce((sum, w) => sum + w.lat, 0) / waypoints.length,
+          lng: waypoints.reduce((sum, w) => sum + w.lng, 0) / waypoints.length,
+        }
+        : { lat: 28.6139, lng: 77.2090 });
+
+      const map = L.map(mapRef.current, {
+        center: [mapCenter.lat, mapCenter.lng],
+        zoom,
+        scrollWheelZoom: true,
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+
+      mapInstanceRef.current = map;
     }
 
-    // Calculate center from waypoints if not provided
-    const mapCenter = center || (waypoints.length > 0
-      ? {
-        lat: waypoints.reduce((sum, w) => sum + w.lat, 0) / waypoints.length,
-        lng: waypoints.reduce((sum, w) => sum + w.lng, 0) / waypoints.length,
-      }
-      : { lat: 28.6139, lng: 77.2090 }); // Default: New Delhi
+    const map = mapInstanceRef.current;
 
-    // Create map
-    const map = L.map(mapRef.current, {
-      center: [mapCenter.lat, mapCenter.lng],
-      zoom,
-      scrollWheelZoom: true,
+    // 2. Clear previous layers (markers and lines)
+    map.eachLayer((layer) => {
+      // Don't remove the tile layer (the actual map background!)
+      if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+        map.removeLayer(layer);
+      }
     });
 
-    // Add OpenStreetMap tile layer
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(map);
-
-    // Add markers for each waypoint
+    // 3. Add current waypoints as markers
     waypoints.forEach((waypoint, index) => {
       const marker = L.marker([waypoint.lat, waypoint.lng], {
         icon: createCustomIcon(waypoint.type || 'delivery'),
+        zIndexOffset: waypoint.type === 'agent' ? 1000 : waypoint.type === 'current' ? 500 : 0 // Make sure Blue Dot is always on top
       }).addTo(map);
 
       if (waypoint.label) {
@@ -126,11 +135,11 @@ export function DeliveryMap({
       }
     });
 
-    // Draw route lines if enabled
-    async function drawRoadRoute(map: L.Map, routeWaypoints: Waypoint[], color: string) {
-      if (!routeWaypoints || routeWaypoints.length < 2) return;
+    // 4. Draw route if enabled
+    async function drawRoadRoute() {
+      if (!waypoints || waypoints.length < 2) return;
       try {
-        const coords = routeWaypoints.map(w => `${w.lng},${w.lat}`).join(';');
+        const coords = waypoints.map(w => `${w.lng},${w.lat}`).join(';');
         const res = await fetch(
           `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`
         );
@@ -141,11 +150,14 @@ export function DeliveryMap({
             ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
           );
 
-          L.polyline(route, {
-            color,
-            weight: 5,
-            opacity: 0.9,
-          }).addTo(map);
+          // Only draw if map hasn't unmounted during the fetch
+          if (mapInstanceRef.current === map) {
+            L.polyline(route, {
+              color: showOptimizedRoute ? '#10b981' : '#3b82f6',
+              weight: 5,
+              opacity: 0.9,
+            }).addTo(map);
+          }
         }
       } catch (err) {
         console.error("Road route draw failed", err);
@@ -153,26 +165,24 @@ export function DeliveryMap({
     }
 
     if (showRoute && waypoints.length > 1) {
-      // If the map is explicitly asked to show the optimized route, make it green, else blue
-      drawRoadRoute(map, waypoints, showOptimizedRoute ? '#10b981' : '#3b82f6');
+      drawRoadRoute();
     }
 
-
-    // Fit bounds to show all markers
-    if (waypoints.length > 0) {
+    // 5. Fit bounds to all markers (Optional during live tracking to avoid jerky camera)
+    // Only fit bounds if we have waypoints and it's the first render or zoom/center isn't strict
+    if (waypoints.length > 0 && !center && zoom === 12) {
       const bounds = L.latLngBounds(waypoints.map(w => [w.lat, w.lng] as [number, number]));
       map.fitBounds(bounds, { padding: [50, 50] });
     }
 
-    mapInstanceRef.current = map;
-
     return () => {
-      if (mapInstanceRef.current) {
+      // Cleanup on unmount
+      if (mapInstanceRef.current && mapRef.current === null) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
     };
-  }, [waypoints, showRoute, showOptimizedRoute, originalRoute, optimizedRoute, center, zoom]);
+  }, [waypoints, showRoute, showOptimizedRoute, center, zoom]);
 
   return (
     <div

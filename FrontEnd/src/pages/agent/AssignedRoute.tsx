@@ -4,6 +4,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDelivery } from '@/contexts/DeliveryContext';
 import { useRoute } from '@/contexts/RouteContext';
+import { useTracking } from '@/hooks/useTracking';
 import { warehouseLocation } from '@/data/mockData';
 import { Navigation, MapPin, Clock, Phone, User, FileText, ArrowRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,22 +14,50 @@ import { toast } from 'sonner';
 export default function AssignedRoute() {
   const { user } = useAuth();
   const { getAgentDeliveries, updateDeliveryStatus } = useDelivery();
-  const { optimizedRoutes } = useRoute();
+  const { optimizedRoutes, agentLocation } = useRoute();
+  const { isTracking, startTracking, stopTracking } = useTracking();
   const agentId = user?.agentId || 'agent-001';
 
   const agentDeliveries = getAgentDeliveries(agentId).filter(d => d.status !== 'delivered');
   const routeData = optimizedRoutes[agentId];
   const orderedDeliveries = routeData ? routeData.sequence.filter(d => d.status !== 'delivered') : agentDeliveries;
 
-  const waypoints = [
-    { lat: warehouseLocation.lat, lng: warehouseLocation.lng, label: 'Central Warehouse (Start)', type: 'warehouse' as const },
+  const waypoints: Array<{
+    lat: number;
+    lng: number;
+    label?: string;
+    type: 'warehouse' | 'delivery' | 'current' | 'agent';
+  }> = [];
+
+  // Start route from Agent Location if tracking, otherwise from Warehouse
+  if (agentLocation) {
+    waypoints.push({
+      lat: agentLocation.lat,
+      lng: agentLocation.lng,
+      label: 'Your Current Location',
+      type: 'agent' as const
+    });
+  } else {
+    waypoints.push({
+      lat: warehouseLocation.lat,
+      lng: warehouseLocation.lng,
+      label: 'Central Warehouse (Start)',
+      type: 'warehouse' as const
+    });
+  }
+
+  // Add remaining deliveries
+  waypoints.push(
     ...orderedDeliveries.map((d, i) => ({
-      lat: d.location.lat, lng: d.location.lng,
+      lat: d.location.lat,
+      lng: d.location.lng,
       label: `${i + 1}. ${d.location.streetAddress}, ${d.location.area}`,
       type: d.status === 'in-transit' ? 'current' as const : 'delivery' as const,
-    })),
-    { lat: warehouseLocation.lat, lng: warehouseLocation.lng, label: 'Central Warehouse (End)', type: 'warehouse' as const },
-  ];
+    }))
+  );
+
+  // Always end at the Warehouse
+  waypoints.push({ lat: warehouseLocation.lat, lng: warehouseLocation.lng, label: 'Central Warehouse (End)', type: 'warehouse' as const });
 
   const currentDelivery = orderedDeliveries.find(d => d.status === 'in-transit') || orderedDeliveries[0];
 
@@ -44,8 +73,13 @@ export default function AssignedRoute() {
           <h1 className="text-3xl font-bold text-foreground">Assigned Route</h1>
           <p className="text-muted-foreground mt-1">{orderedDeliveries.length} deliveries remaining today</p>
         </div>
-        <Button className="gap-2" onClick={() => toast.info('Navigation started!')}>
-          <Navigation className="h-4 w-4" />Start Navigation
+        <Button
+          className="gap-2"
+          variant={isTracking ? "destructive" : "default"}
+          onClick={isTracking ? stopTracking : startTracking}
+        >
+          <Navigation className="h-4 w-4" />
+          {isTracking ? 'Stop Navigation' : 'Start Navigation'}
         </Button>
       </div>
 

@@ -59,6 +59,8 @@ interface OptimizedRouteData {
 interface RouteContextType {
     optimizedRoutes: Record<string, OptimizedRouteData>;
     optimizeRoute: (agentId: string) => Promise<OptimizedRouteData>;
+    agentLocation: { lat: number; lng: number } | null;
+    setAgentLocation: (location: { lat: number; lng: number } | null) => void;
 }
 
 const RouteContext = createContext<RouteContextType | undefined>(undefined);
@@ -66,6 +68,7 @@ const RouteContext = createContext<RouteContextType | undefined>(undefined);
 export function RouteProvider({ children }: { children: ReactNode }) {
     const { deliveries } = useDelivery();
     const [optimizedRoutes, setOptimizedRoutes] = useState<Record<string, OptimizedRouteData>>({});
+    const [agentLocation, setAgentLocation] = useState<{ lat: number; lng: number } | null>(null);
 
     const optimizeRoute = useCallback(
         async (agentId: string): Promise<OptimizedRouteData> => {
@@ -112,7 +115,7 @@ export function RouteProvider({ children }: { children: ReactNode }) {
     );
 
     return (
-        <RouteContext.Provider value={{ optimizedRoutes, optimizeRoute }}>
+        <RouteContext.Provider value={{ optimizedRoutes, optimizeRoute, agentLocation, setAgentLocation }}>
             {children}
         </RouteContext.Provider>
     );
