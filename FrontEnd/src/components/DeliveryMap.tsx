@@ -23,6 +23,7 @@ interface DeliveryMapProps {
   showOptimizedRoute?: boolean;
   originalRoute?: Waypoint[];
   optimizedRoute?: Waypoint[];
+  routeCoordinates?: [number, number][]; // Pre-fetched route to draw
   height?: string;
   className?: string;
   center?: { lat: number; lng: number };
@@ -75,6 +76,7 @@ export function DeliveryMap({
   showOptimizedRoute = false,
   originalRoute,
   optimizedRoute,
+  routeCoordinates,
   height = '400px',
   className = '',
   center,
@@ -136,10 +138,10 @@ export function DeliveryMap({
     });
 
     // 4. Draw route if enabled
-    async function drawRoadRoute() {
-      if (!waypoints || waypoints.length < 2) return;
+    async function drawRoadRoute(points: Waypoint[], color: string, isDashed: boolean = false) {
+      if (!points || points.length < 2) return;
       try {
-        const coords = waypoints.map(w => `${w.lng},${w.lat}`).join(';');
+        const coords = points.map(w => `${w.lng},${w.lat}`).join(';');
         const res = await fetch(
           `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`
         );
@@ -153,9 +155,10 @@ export function DeliveryMap({
           // Only draw if map hasn't unmounted during the fetch
           if (mapInstanceRef.current === map) {
             L.polyline(route, {
-              color: showOptimizedRoute ? '#10b981' : '#3b82f6',
+              color,
               weight: 5,
               opacity: 0.9,
+              dashArray: isDashed ? '10, 10' : undefined
             }).addTo(map);
           }
         }
@@ -164,8 +167,19 @@ export function DeliveryMap({
       }
     }
 
-    if (showRoute && waypoints.length > 1) {
-      drawRoadRoute();
+    if (routeCoordinates && routeCoordinates.length > 0) {
+      L.polyline(routeCoordinates, {
+        color: showOptimizedRoute ? '#10b981' : '#3b82f6',
+        weight: 5,
+        opacity: 0.9,
+      }).addTo(map);
+    } else {
+      if (showOptimizedRoute && originalRoute && optimizedRoute) {
+        drawRoadRoute(originalRoute, '#ef4444', true);
+        drawRoadRoute(optimizedRoute, '#10b981', false);
+      } else if (showRoute && waypoints.length > 1) {
+        drawRoadRoute(waypoints, showOptimizedRoute ? '#10b981' : '#3b82f6');
+      }
     }
 
     // 5. Fit bounds to all markers (Optional during live tracking to avoid jerky camera)
@@ -182,7 +196,7 @@ export function DeliveryMap({
         mapInstanceRef.current = null;
       }
     };
-  }, [waypoints, showRoute, showOptimizedRoute, center, zoom]);
+  }, [waypoints, showRoute, showOptimizedRoute, routeCoordinates, originalRoute, optimizedRoute, center, zoom]);
 
   return (
     <div

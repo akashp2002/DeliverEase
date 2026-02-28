@@ -10,6 +10,8 @@ import { Navigation, MapPin, Clock, Phone, User, FileText, ArrowRight } from 'lu
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { useNavigation } from '@/hooks/useNavigation';
+import { NavigationPanel } from '@/components/NavigationPanel';
 
 export default function AssignedRoute() {
   const { user } = useAuth();
@@ -21,6 +23,16 @@ export default function AssignedRoute() {
   const agentDeliveries = getAgentDeliveries(agentId).filter(d => d.status !== 'delivered');
   const routeData = optimizedRoutes[agentId];
   const orderedDeliveries = routeData ? routeData.sequence.filter(d => d.status !== 'delivered') : agentDeliveries;
+
+  // Extract navigation waypoints from remaining deliveries
+  const navWaypoints = orderedDeliveries.map(d => ({ lat: d.location.lat, lng: d.location.lng }));
+
+  // Use navigation hook
+  const navProps = useNavigation(
+    navWaypoints,
+    agentLocation,
+    isTracking
+  );
 
   const waypoints: Array<{
     lat: number;
@@ -102,11 +114,15 @@ export default function AssignedRoute() {
                 {routeData ? 'Optimized delivery route' : 'Your delivery route'}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="relative">
+              {isTracking && (
+                <NavigationPanel navState={navProps} formatDistance={navProps.formatDistance} />
+              )}
               <DeliveryMap
                 waypoints={waypoints}
                 showRoute={true}
                 showOptimizedRoute={!!routeData}
+                routeCoordinates={isTracking ? navProps.routeCoordinates : undefined}
                 height="500px"
               />
               <div className="flex items-center gap-6 mt-4 text-sm">
