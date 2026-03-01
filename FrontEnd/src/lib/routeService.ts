@@ -13,3 +13,9 @@ export async function getDistanceMatrix(locations: { lat: number; lng: number }[
   const res = await api.post('/route/matrix', { locations });
   return res.data.distances;
 }
+
+// Get the full path GeoJSON and steps from OpenRouteService
+export async function getRoadPath(locations: { lat: number; lng: number }[]): Promise<any> {
+  const res = await api.post('/route/path', { locations });
+  return res.data.data;
+}

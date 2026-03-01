@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
+import { getRoadPath } from '@/lib/routeService';
 
 // Haversine distance in meters
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -75,46 +76,49 @@ export function useNavigation(
     const hasSpokenStepRef = useRef<boolean>(false);
 
     // We only fetch the full route once (or when waypoints significantly change/recalc).
+    const waypointsStr = JSON.stringify(waypoints);
+
     const fetchRoute = useCallback(async (startLoc: { lat: number; lng: number }) => {
-        if (!waypoints || waypoints.length < 2) return;
+        const currentWaypoints = JSON.parse(waypointsStr);
+        if (!currentWaypoints || currentWaypoints.length < 2) return;
         setNavState(prev => ({ ...prev, isLoading: true, error: null }));
 
         try {
             // Include agent's current location as the start point specifically for routing 
             // if we are live tracking, to get accurate steps from their current spot.
-            const routeWaypoints = [startLoc, ...waypoints.slice(1)];
-            const coords = routeWaypoints.map(w => `${w.lng},${w.lat}`).join(';');
+            const routeWaypoints = [startLoc, ...currentWaypoints.slice(1)];
+            const locations = routeWaypoints.map((w: any) => ({ lat: w.lat, lng: w.lng }));
 
-            // Fetch route with steps=true
-            const res = await fetch(
-                `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`
-            );
-            const data = await res.json();
+            // Fetch route from backend proxy to ORS
+            const data = await getRoadPath(locations);
 
-            if (data.routes && data.routes[0]) {
-                const route = data.routes[0];
-                const coordinates = route.geometry.coordinates.map(
+            if (data.features && data.features[0]) {
+                const feature = data.features[0];
+                const coordinates = feature.geometry.coordinates.map(
                     ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
                 );
 
-                // Extract all steps from all legs
+                // Extract all steps from all legs (segments in ORS)
                 const allSteps: NavStep[] = [];
-                if (route.legs) {
-                    for (const leg of route.legs) {
-                        if (leg.steps) {
-                            for (const step of leg.steps) {
-                                // OSRM gives text instruction natively!
-                                const instruction = `${step.maneuver.type} ${step.maneuver.modifier ? step.maneuver.modifier : ''} ${step.name ? 'onto ' + step.name : ''}`.trim();
+                if (feature.properties && feature.properties.segments) {
+                    for (const segment of feature.properties.segments) {
+                        if (segment.steps) {
+                            for (const step of segment.steps) {
+                                // Extract maneuver location from the coordinates array using way_points[0]
+                                const startPointIdx = step.way_points[0];
+                                const pointCoords = feature.geometry.coordinates[startPointIdx];
 
                                 const navStep: NavStep = {
-                                    instruction: instruction,
+                                    instruction: step.instruction || 'Continue straight',
                                     distance: step.distance,
                                     duration: step.duration,
-                                    maneuver: step.maneuver,
-                                    // Map geometry points appropriately if needed 
-                                    geometry: step.geometry ? step.geometry.coordinates?.map(([l, t]: any) => [t, l]) : []
+                                    maneuver: {
+                                        location: [pointCoords[0], pointCoords[1]],
+                                        type: step.type?.toString() || 'turn',
+                                        modifier: ''
+                                    },
+                                    geometry: feature.geometry.coordinates.slice(step.way_points[0], step.way_points[1] + 1).map((p: any) => [p[1], p[0]])
                                 };
-                                // Filter out 0 distance steps (like generic 'depart') if we want, but keeping them is safer.
                                 allSteps.push(navStep);
                             }
                         }
@@ -130,8 +134,8 @@ export function useNavigation(
                     routeCoordinates: coordinates,
                     currentStep: allSteps[0] || null,
                     nextStep: allSteps[1] || null,
-                    totalRemainingDistance: route.distance,
-                    totalRemainingTime: route.duration,
+                    totalRemainingDistance: feature.properties.summary?.distance || 0,
+                    totalRemainingTime: feature.properties.summary?.duration || 0,
                     isLoading: false,
                 }));
             }
@@ -139,7 +143,7 @@ export function useNavigation(
             console.error("Failed to fetch navigation route:", err);
             setNavState(prev => ({ ...prev, error: "Failed to load route", isLoading: false }));
         }
-    }, [waypoints]);
+    }, [waypointsStr]);
 
     // Initial load when tracking starts
     useEffect(() => {

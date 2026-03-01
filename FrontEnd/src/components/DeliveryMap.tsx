@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { getRoadPath } from '@/lib/routeService';
 
 // Fix for default marker icons in Leaflet with bundlers
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -85,6 +86,11 @@ export function DeliveryMap({
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
 
+  const waypointsStr = JSON.stringify(waypoints);
+  const routeCoordinatesStr = JSON.stringify(routeCoordinates);
+  const originalRouteStr = JSON.stringify(originalRoute);
+  const optimizedRouteStr = JSON.stringify(optimizedRoute);
+
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -141,14 +147,11 @@ export function DeliveryMap({
     async function drawRoadRoute(points: Waypoint[], color: string, isDashed: boolean = false) {
       if (!points || points.length < 2) return;
       try {
-        const coords = points.map(w => `${w.lng},${w.lat}`).join(';');
-        const res = await fetch(
-          `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`
-        );
-        const data = await res.json();
+        const locations = points.map(w => ({ lat: w.lat, lng: w.lng }));
+        const data = await getRoadPath(locations);
 
-        if (data.routes && data.routes[0]) {
-          const route = data.routes[0].geometry.coordinates.map(
+        if (data.features && data.features[0]) {
+          const route = data.features[0].geometry.coordinates.map(
             ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
           );
 
@@ -196,7 +199,8 @@ export function DeliveryMap({
         mapInstanceRef.current = null;
       }
     };
-  }, [waypoints, showRoute, showOptimizedRoute, routeCoordinates, originalRoute, optimizedRoute, center, zoom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waypointsStr, showRoute, showOptimizedRoute, routeCoordinatesStr, originalRouteStr, optimizedRouteStr, center?.lat, center?.lng, zoom]);
 
   return (
     <div

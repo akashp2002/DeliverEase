@@ -90,4 +90,48 @@ router.post("/matrix", async (req, res) => {
   }
 });
 
+// POST /api/route/path
+// Accepts: { locations: [{lat, lng}, ...] }
+// Returns GeoJSON with turn-by-turn steps from ORS.
+router.post("/path", async (req, res) => {
+  try {
+    const { locations } = req.body;
+
+    if (!locations || !Array.isArray(locations) || locations.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: "locations array with at least 2 points is required",
+      });
+    }
+
+    const coordinates = locations.map((loc) => [
+      parseFloat(loc.lng),
+      parseFloat(loc.lat),
+    ]);
+
+    const response = await axios.post(
+      "https://api.openrouteservice.org/v2/directions/driving-car/geojson",
+      {
+        coordinates: coordinates,
+        instructions: true,
+      },
+      {
+        headers: {
+          Authorization: ORS_API_KEY,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    res.json({ success: true, data: response.data });
+  } catch (err) {
+    console.error("❌ ORS /path ERROR:", err.response?.data || err.message);
+    res.status(500).json({
+      success: false,
+      message: "ORS Path API failed",
+      error: err.response?.data || err.message,
+    });
+  }
+});
+
 module.exports = router;
