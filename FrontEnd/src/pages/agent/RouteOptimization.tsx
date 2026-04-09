@@ -64,7 +64,7 @@ export default function AgentRouteOptimization() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Route Optimization</h1>
           <p className="text-muted-foreground mt-1">
-            Optimize delivery sequence using Nearest-Neighbor heuristic 
+            Optimize delivery sequence using Nearest-Neighbor heuristic
           </p>
         </div>
         <Button onClick={handleOptimize} disabled={isOptimizing || agentDeliveries.length === 0} className="gap-2">
@@ -158,6 +158,8 @@ export default function AgentRouteOptimization() {
             <CardContent>
               <DeliveryMap
                 waypoints={showOptimized ? optimizedWaypoints : originalWaypoints}
+                originalRoute={originalWaypoints}
+                optimizedRoute={showOptimized ? optimizedWaypoints : undefined}
                 showRoute={true}
                 showOptimizedRoute={showOptimized}
                 height="450px"

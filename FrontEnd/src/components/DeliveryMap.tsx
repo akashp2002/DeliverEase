@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { getRoadPath } from '@/lib/routeService';
 
 // Fix for default marker icons in Leaflet with bundlers
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -23,6 +24,7 @@ interface DeliveryMapProps {
   showOptimizedRoute?: boolean;
   originalRoute?: Waypoint[];
   optimizedRoute?: Waypoint[];
+  routeCoordinates?: [number, number][]; // Pre-fetched route to draw
   height?: string;
   className?: string;
   center?: { lat: number; lng: number };
@@ -75,6 +77,7 @@ export function DeliveryMap({
   showOptimizedRoute = false,
   originalRoute,
   optimizedRoute,
+  routeCoordinates,
   height = '400px',
   className = '',
   center,
@@ -82,6 +85,11 @@ export function DeliveryMap({
 }: DeliveryMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+
+  const waypointsStr = JSON.stringify(waypoints);
+  const routeCoordinatesStr = JSON.stringify(routeCoordinates);
+  const originalRouteStr = JSON.stringify(originalRoute);
+  const optimizedRouteStr = JSON.stringify(optimizedRoute);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -136,26 +144,24 @@ export function DeliveryMap({
     });
 
     // 4. Draw route if enabled
-    async function drawRoadRoute() {
-      if (!waypoints || waypoints.length < 2) return;
+    async function drawRoadRoute(points: Waypoint[], color: string, isDashed: boolean = false) {
+      if (!points || points.length < 2) return;
       try {
-        const coords = waypoints.map(w => `${w.lng},${w.lat}`).join(';');
-        const res = await fetch(
-          `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`
-        );
-        const data = await res.json();
+        const locations = points.map(w => ({ lat: w.lat, lng: w.lng }));
+        const data = await getRoadPath(locations);
 
-        if (data.routes && data.routes[0]) {
-          const route = data.routes[0].geometry.coordinates.map(
+        if (data.features && data.features[0]) {
+          const route = data.features[0].geometry.coordinates.map(
             ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
           );
 
           // Only draw if map hasn't unmounted during the fetch
           if (mapInstanceRef.current === map) {
             L.polyline(route, {
-              color: showOptimizedRoute ? '#10b981' : '#3b82f6',
+              color,
               weight: 5,
               opacity: 0.9,
+              dashArray: isDashed ? '10, 10' : undefined
             }).addTo(map);
           }
         }
@@ -164,8 +170,19 @@ export function DeliveryMap({
       }
     }
 
-    if (showRoute && waypoints.length > 1) {
-      drawRoadRoute();
+    if (routeCoordinates && routeCoordinates.length > 0) {
+      L.polyline(routeCoordinates, {
+        color: showOptimizedRoute ? '#10b981' : '#3b82f6',
+        weight: 5,
+        opacity: 0.9,
+      }).addTo(map);
+    } else {
+      if (showOptimizedRoute && originalRoute && optimizedRoute) {
+        drawRoadRoute(originalRoute, '#ef4444', true);
+        drawRoadRoute(optimizedRoute, '#10b981', false);
+      } else if (showRoute && waypoints.length > 1) {
+        drawRoadRoute(waypoints, showOptimizedRoute ? '#10b981' : '#3b82f6');
+      }
     }
 
     // 5. Fit bounds to all markers (Optional during live tracking to avoid jerky camera)
@@ -182,7 +199,8 @@ export function DeliveryMap({
         mapInstanceRef.current = null;
       }
     };
-  }, [waypoints, showRoute, showOptimizedRoute, center, zoom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waypointsStr, showRoute, showOptimizedRoute, routeCoordinatesStr, originalRouteStr, optimizedRouteStr, center?.lat, center?.lng, zoom]);
 
   return (
     <div

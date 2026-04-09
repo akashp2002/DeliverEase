@@ -13,7 +13,7 @@ export function useTracking() {
         isTracking: false,
         error: null,
     });
-
+3
     // Keep track of the watch ID to cancel it later
     const [watchId, setWatchId] = useState<number | null>(null);
 
